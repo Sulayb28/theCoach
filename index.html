@@ -1,13 +1,102 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>wrestling-coach-game</title>
+    <title>Wrestling Coach Prototype</title>
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <div id="app"></div>
+    <header>
+      <h1>Wrestling Coach – Prototype</h1>
+    </header>
+
+    <main>
+      <!-- Roster builder -->
+      <section class="card">
+        <h2>Add Wrestler</h2>
+        <form id="add-wrestler-form">
+          <div class="field">
+            <label for="name">Name</label>
+            <input id="name" required />
+          </div>
+
+          <div class="field">
+            <label for="weight">Weight (lbs)</label>
+            <input id="weight" type="number" required />
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="neutral">Neutral</label>
+              <input id="neutral" type="number" min="1" max="99" value="70" />
+            </div>
+            <div class="field">
+              <label for="top">Top</label>
+              <input id="top" type="number" min="1" max="99" value="70" />
+            </div>
+            <div class="field">
+              <label for="bottom">Bottom</label>
+              <input id="bottom" type="number" min="1" max="99" value="70" />
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="strength">Strength</label>
+              <input id="strength" type="number" min="1" max="99" value="70" />
+            </div>
+            <div class="field">
+              <label for="conditioning">Conditioning</label>
+              <input id="conditioning" type="number" min="1" max="99" value="70" />
+            </div>
+            <div class="field">
+              <label for="technique">Technique</label>
+              <input id="technique" type="number" min="1" max="99" value="70" />
+            </div>
+          </div>
+
+          <button type="submit">Add Wrestler</button>
+        </form>
+      </section>
+
+      <!-- Roster list -->
+      <section class="card">
+        <h2>Roster</h2>
+
+        <div class="field-row">
+            <button id="save-btn" type="button">Save Roster</button>
+            <button id="load-btn" type="button">Load Roster</button>
+        </div>
+
+        <ul id="roster-list"></ul>
+      </section>
+
+
+
+      </section>
+
+      <!-- Match sim -->
+      <section class="card">
+        <h2>Quick Match</h2>
+        <p>Select any two wrestlers below and simulate a match.</p>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="wrestler-a">Red</label>
+            <select id="wrestler-a"></select>
+          </div>
+          <div class="field">
+            <label for="wrestler-b">Green</label>
+            <select id="wrestler-b"></select>
+          </div>
+        </div>
+
+        <button id="simulate-btn">Simulate Match</button>
+
+        <div id="result-log" class="log"></div>
+      </section>
+    </main>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

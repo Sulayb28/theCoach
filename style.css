@@ -1,7 +1,109 @@
-/* Wrestling Coach Game Styles */
+* {
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
 body {
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
+  margin: 0;
+  background: #020617;
+  color: #e5e7eb;
 }
+
+header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #1f2937;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+main {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 16px 24px;
+}
+
+.card {
+  background: #0b1120;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  padding: 12px 14px;
+}
+
+.card h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+label {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 2px;
+}
+
+input,
+select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+button {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: none;
+  background: #22c55e;
+  color: #022c22;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.05);
+}
+
+#roster-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+#roster-list li {
+  padding: 4px 0;
+  border-bottom: 1px solid #111827;
+  font-size: 14px;
+}
+
+.log {
+  margin-top: 10px;
+  padding: 8px 10px;
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #020617;
+  font-size: 14px;
+  white-space: pre-line;
+}
+
+.field-row button {
+  width: 100%;
+}
+

@@ -7,10 +7,36 @@
   </head>
   <body>
     <header>
-      <h1>Wrestling Coach – Prototype</h1>
+      <h1>Wrestling Coach - Prototype</h1>
     </header>
 
-    <main>
+    <section id="program-select" class="card overlay">
+      <div class="overlay-content">
+        <div class="overlay-copy">
+          <p class="eyebrow">Step 1</p>
+          <h2>Choose Your Program</h2>
+          <p>
+            Pick a college room to lead. Your choice sets your team name and prestige for the journey ahead.
+          </p>
+        </div>
+        <div id="program-grid" class="program-grid"></div>
+      </div>
+    </section>
+
+    <main id="game-ui" class="hidden">
+      <section class="card program-banner">
+        <div>
+          <p class="eyebrow">Program</p>
+          <h2 id="program-name">No Program Selected</h2>
+          <p id="program-blurb" class="program-blurb"></p>
+        </div>
+        <div class="prestige">
+          <span class="label">Prestige</span>
+          <span id="program-prestige" class="value">-</span>
+        </div>
+        <button id="switch-program-btn" type="button" class="ghost">Switch Program</button>
+      </section>
+
       <!-- Roster builder -->
       <section class="card">
         <h2>Add Wrestler</h2>
@@ -63,16 +89,17 @@
       <section class="card">
         <h2>Roster</h2>
 
+        <div class="field">
+          <label for="team-name">Team Name</label>
+          <input id="team-name" placeholder="e.g., Columbia Lions" />
+        </div>
+
         <div class="field-row">
-            <button id="save-btn" type="button">Save Roster</button>
-            <button id="load-btn" type="button">Load Roster</button>
+          <button id="save-btn" type="button">Save Roster</button>
+          <button id="load-btn" type="button">Load Roster</button>
         </div>
 
         <ul id="roster-list"></ul>
-      </section>
-
-
-
       </section>
 
       <!-- Match sim -->
@@ -94,6 +121,52 @@
         <button id="simulate-btn">Simulate Match</button>
 
         <div id="result-log" class="log"></div>
+      </section>
+
+      <!-- NEW: Intra-squad Dual Meet -->
+      <section class="card">
+        <h2>Intra-squad Dual Meet</h2>
+        <p>Splits your roster into Red vs Green by weight class and simulates a full dual.</p>
+
+        <button id="dual-btn" type="button">Simulate Intra-squad Dual</button>
+
+        <div id="dual-log" class="log"></div>
+      </section>
+
+      <!-- Dual vs Rival -->
+      <section class="card">
+        <h2>Dual vs Rival Team</h2>
+        <p>Use your lineup against a generated rival team with similar strength.</p>
+
+        <button id="vs-opponent-btn" type="button">Simulate Dual vs Rival</button>
+
+        <div id="vs-opponent-log" class="log"></div>
+      </section>
+
+      <!-- Season -->
+      <section class="card">
+        <h2>Season</h2>
+        <p>
+          Week <span id="season-week">1</span> -
+          Record: <span id="season-record">0-0</span>
+        </p>
+
+        <div class="field">
+          <label for="training-focus">Training focus this week</label>
+          <select id="training-focus">
+            <option value="balanced">Balanced</option>
+            <option value="neutral">Neutral / Takedowns</option>
+            <option value="top">Top / Turns</option>
+            <option value="bottom">Bottom / Escapes</option>
+            <option value="strength">Strength</option>
+            <option value="conditioning">Conditioning</option>
+            <option value="technique">Technique</option>
+          </select>
+        </div>
+
+        <button id="season-next-btn" type="button">Simulate Next Dual</button>
+
+        <div id="season-log" class="log"></div>
       </section>
     </main>
 

@@ -26,6 +26,18 @@ main {
   padding: 16px 24px;
 }
 
+@media (max-width: 1080px) {
+  main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+}
+
 .card {
   background: #0b1120;
   border-radius: 12px;
@@ -80,6 +92,12 @@ button:hover {
   filter: brightness(1.05);
 }
 
+.ghost {
+  background: transparent;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+}
+
 #roster-list {
   list-style: none;
   padding-left: 0;
@@ -107,3 +125,125 @@ button:hover {
   width: 100%;
 }
 
+.hidden {
+  display: none !important;
+}
+
+.overlay {
+  margin: 16px 24px;
+}
+
+.overlay-content {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .overlay-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.overlay-copy h2 {
+  margin: 4px 0 8px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.program-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.program-card {
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(145deg, #0f172a, #0b1120);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.program-card:hover {
+  transform: translateY(-2px);
+  border-color: #22c55e;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.program-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.program-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.program-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  font-size: 13px;
+}
+
+.program-banner {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .program-banner {
+    grid-template-columns: 1fr;
+  }
+  .program-banner .prestige {
+    justify-self: start;
+  }
+  .program-banner button {
+    justify-self: start;
+  }
+}
+
+.program-blurb {
+  color: #9ca3af;
+  margin: 4px 0 0;
+}
+
+.prestige {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #111827;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  padding: 8px 10px;
+}
+
+.prestige .label {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.prestige .value {
+  font-size: 18px;
+  font-weight: 700;
+}

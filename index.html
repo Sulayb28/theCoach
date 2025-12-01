@@ -10,7 +10,7 @@
       <h1>Wrestling Coach - Prototype</h1>
     </header>
 
-    <section id="program-select" class="card overlay">
+    <section id="program-select" class="card overlay fullscreen">
       <div class="overlay-content">
         <div class="overlay-copy">
           <p class="eyebrow">Step 1</p>
@@ -37,52 +37,38 @@
         <button id="switch-program-btn" type="button" class="ghost">Switch Program</button>
       </section>
 
-      <!-- Roster builder -->
+      <section class="card coach-bar">
+        <div class="coach-bar-left">
+          <div class="stat">
+            <span class="label">Week</span>
+            <span class="value" id="season-week">1</span>
+          </div>
+          <div class="stat">
+            <span class="label">Record</span>
+            <span class="value" id="season-record">0-0</span>
+          </div>
+        </div>
+        <div class="coach-bar-center">
+          <label class="label" for="training-focus">Training focus</label>
+          <select id="training-focus">
+            <option value="balanced">Balanced</option>
+            <option value="neutral">Neutral / Takedowns</option>
+            <option value="top">Top / Turns</option>
+            <option value="bottom">Bottom / Escapes</option>
+            <option value="strength">Strength</option>
+            <option value="conditioning">Conditioning</option>
+            <option value="technique">Technique</option>
+          </select>
+        </div>
+        <div class="coach-bar-right">
+          <button id="season-next-btn" type="button" class="primary">Next Week</button>
+        </div>
+      </section>
+
+      <!-- Lineup -->
       <section class="card">
-        <h2>Add Wrestler</h2>
-        <form id="add-wrestler-form">
-          <div class="field">
-            <label for="name">Name</label>
-            <input id="name" required />
-          </div>
-
-          <div class="field">
-            <label for="weight">Weight (lbs)</label>
-            <input id="weight" type="number" required />
-          </div>
-
-          <div class="field-row">
-            <div class="field">
-              <label for="neutral">Neutral</label>
-              <input id="neutral" type="number" min="1" max="99" value="70" />
-            </div>
-            <div class="field">
-              <label for="top">Top</label>
-              <input id="top" type="number" min="1" max="99" value="70" />
-            </div>
-            <div class="field">
-              <label for="bottom">Bottom</label>
-              <input id="bottom" type="number" min="1" max="99" value="70" />
-            </div>
-          </div>
-
-          <div class="field-row">
-            <div class="field">
-              <label for="strength">Strength</label>
-              <input id="strength" type="number" min="1" max="99" value="70" />
-            </div>
-            <div class="field">
-              <label for="conditioning">Conditioning</label>
-              <input id="conditioning" type="number" min="1" max="99" value="70" />
-            </div>
-            <div class="field">
-              <label for="technique">Technique</label>
-              <input id="technique" type="number" min="1" max="99" value="70" />
-            </div>
-          </div>
-
-          <button type="submit">Add Wrestler</button>
-        </form>
+        <h2>Lineup Board</h2>
+        <div id="lineup-grid" class="lineup-grid"></div>
       </section>
 
       <!-- Roster list -->
@@ -95,6 +81,7 @@
         </div>
 
         <div class="field-row">
+          <button id="regen-roster-btn" type="button">Regenerate Roster</button>
           <button id="save-btn" type="button">Save Roster</button>
           <button id="load-btn" type="button">Load Roster</button>
         </div>
@@ -146,26 +133,6 @@
       <!-- Season -->
       <section class="card">
         <h2>Season</h2>
-        <p>
-          Week <span id="season-week">1</span> -
-          Record: <span id="season-record">0-0</span>
-        </p>
-
-        <div class="field">
-          <label for="training-focus">Training focus this week</label>
-          <select id="training-focus">
-            <option value="balanced">Balanced</option>
-            <option value="neutral">Neutral / Takedowns</option>
-            <option value="top">Top / Turns</option>
-            <option value="bottom">Bottom / Escapes</option>
-            <option value="strength">Strength</option>
-            <option value="conditioning">Conditioning</option>
-            <option value="technique">Technique</option>
-          </select>
-        </div>
-
-        <button id="season-next-btn" type="button">Simulate Next Dual</button>
-
         <div id="season-log" class="log"></div>
       </section>
     </main>

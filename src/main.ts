@@ -23,9 +23,20 @@ interface Program {
   prestige: number;
   colors: [string, string];
   blurb: string;
+  wrestlingPopularity: number; // 1-10 scale: how much the community cares
+  athletics: number; // 1-10 overall athletic budget/resources
 }
 
 type WinMethod = "decision" | "major" | "tech fall" | "pin";
+
+interface BoutResult {
+  weightClass: number;
+  a?: Wrestler;
+  b?: Wrestler;
+  winnerSide: "A" | "B" | "none";
+  method: WinMethod | "forfeit";
+  summary: string;
+}
 
 type TrainingFocus =
   | "balanced"
@@ -41,6 +52,7 @@ interface DualResult {
   log: string;
   scoreA: number;
   scoreB: number;
+  bouts: BoutResult[];
 }
 
 
@@ -69,6 +81,8 @@ const PROGRAMS: Program[] = [
     prestige: 99,
     colors: ["#1b3a5d", "#c8a200"],
     blurb: "Dynasty standard. Expect title-or-bust pressure and elite recruits.",
+    wrestlingPopularity: 10,
+    athletics: 10,
   },
   {
     id: "iowa",
@@ -76,6 +90,8 @@ const PROGRAMS: Program[] = [
     prestige: 96,
     colors: ["#111827", "#fbbf24"],
     blurb: "Hard-nosed room with fan intensity. Duals are events, not matches.",
+    wrestlingPopularity: 10,
+    athletics: 9,
   },
   {
     id: "oklahoma-state",
@@ -83,6 +99,8 @@ const PROGRAMS: Program[] = [
     prestige: 94,
     colors: ["#b45309", "#0b1120"],
     blurb: "Historic cowboy swagger. High expectations for bonus points.",
+    wrestlingPopularity: 9,
+    athletics: 8,
   },
   {
     id: "ohio-state",
@@ -90,6 +108,8 @@ const PROGRAMS: Program[] = [
     prestige: 92,
     colors: ["#9ca3af", "#ef4444"],
     blurb: "Big-ten spotlight, modern style. NIL buzz keeps talent flowing.",
+    wrestlingPopularity: 8,
+    athletics: 9,
   },
   {
     id: "michigan",
@@ -97,6 +117,8 @@ const PROGRAMS: Program[] = [
     prestige: 90,
     colors: ["#0b1b35", "#eab308"],
     blurb: "Balanced roster builds with patient development and deep game-plans.",
+    wrestlingPopularity: 7,
+    athletics: 8,
   },
   {
     id: "cornell",
@@ -104,6 +126,8 @@ const PROGRAMS: Program[] = [
     prestige: 88,
     colors: ["#991b1b", "#f59e0b"],
     blurb: "Ivy grind with technical polish. Overachieves with smart recruiting.",
+    wrestlingPopularity: 8,
+    athletics: 7,
   },
   {
     id: "arizona-state",
@@ -111,6 +135,8 @@ const PROGRAMS: Program[] = [
     prestige: 86,
     colors: ["#7c2d12", "#d97706"],
     blurb: "Sunshine, freestyle flair, and west coast pipelines.",
+    wrestlingPopularity: 7,
+    athletics: 7,
   },
   {
     id: "minnesota",
@@ -118,7 +144,45 @@ const PROGRAMS: Program[] = [
     prestige: 84,
     colors: ["#581c87", "#fbbf24"],
     blurb: "Upper-weight hammers and a gritty crowd vibe.",
+    wrestlingPopularity: 7,
+    athletics: 7,
   },
+];
+
+const FIRST_NAMES = [
+  "Logan",
+  "Carter",
+  "Ethan",
+  "Griffin",
+  "Noah",
+  "Owen",
+  "Jack",
+  "Wyatt",
+  "Mason",
+  "Caleb",
+  "Colton",
+  "Hudson",
+  "Chase",
+  "Liam",
+  "Miles",
+];
+
+const LAST_NAMES = [
+  "Brooks",
+  "Hall",
+  "Ramos",
+  "Starocci",
+  "Lee",
+  "Carr",
+  "Parco",
+  "Gable",
+  "Brooks",
+  "Sloan",
+  "Fix",
+  "Bravo-Young",
+  "O'Toole",
+  "Haines",
+  "Shane",
 ];
 
 // ---- Helpers ----
@@ -155,6 +219,56 @@ function clampStat(v: number): number {
   return Math.min(99, Math.max(1, v));
 }
 
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function prestigeBase(program: Program): number {
+  // Combine prestige with athletics and wrestling popularity to bias baseline stats.
+  const { prestige, athletics, wrestlingPopularity } = program;
+  const prestigeComponent = (prestige - 70) * 0.35;
+  const athleticsComponent = (athletics - 5) * 1.2;
+  const wrestlingComponent = (wrestlingPopularity - 5) * 1.4;
+  return 55 + prestigeComponent + athleticsComponent + wrestlingComponent;
+}
+
+function randomStat(program: Program): number {
+  const base = prestigeBase(program);
+  const variance = 8;
+  const delta = Math.floor(Math.random() * (variance * 2 + 1)) - variance;
+  return clampStat(Math.round(base + delta));
+}
+
+function generateWrestler(program: Program, weightClass: number): Wrestler {
+  const weight = weightClass + Math.floor(Math.random() * 7) - 3; // +- 3 lbs variance
+  return {
+    id: createId(),
+    name: `${pickRandom(FIRST_NAMES)} ${pickRandom(LAST_NAMES)}`,
+    weight,
+    weightClass,
+    neutral: randomStat(program),
+    top: randomStat(program),
+    bottom: randomStat(program),
+    strength: randomStat(program),
+    conditioning: randomStat(program),
+    technique: randomStat(program),
+  };
+}
+
+function generateRosterForProgram(program: Program): void {
+  roster.length = 0;
+  for (const wc of WEIGHT_CLASSES) {
+    const depthScore = (program.athletics + program.wrestlingPopularity) / 2;
+    const openChance = depthScore < 5 ? 0.3 : depthScore < 7 ? 0.15 : 0.05;
+    if (Math.random() < openChance) {
+      continue; // leave weight open
+    }
+    roster.push(generateWrestler(program, wc));
+  }
+  refreshRosterUI();
+  resultLog.textContent = `${program.name} roster generated.`;
+}
+
 function teamPointsForMethod(method: WinMethod): number {
   switch (method) {
     case "pin":
@@ -169,14 +283,15 @@ function teamPointsForMethod(method: WinMethod): number {
   }
 }
 
-function simulateDualVsOpponent(): string {
+function simulateDualVsOpponent(): { result: DualResult; myTeam: Team; rival: Team } | null {
   if (roster.length === 0) {
-    return "Add wrestlers first.";
+    resultLog.textContent = "Add wrestlers first.";
+    return null;
   }
   const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
   const rival = generateOpponentTeam(myTeam);
-  const { log } = simulateDual(myTeam, rival);
-  return log;
+  const result = simulateDual(myTeam, rival);
+  return { result, myTeam, rival };
 }
 
 // ---- Program selection ----
@@ -202,7 +317,7 @@ function renderProgramSelect(): void {
   }
 }
 
-function applyProgram(program: Program, opts?: { keepTeamName?: boolean }): void {
+function applyProgram(program: Program, opts?: { keepTeamName?: boolean; skipRosterGeneration?: boolean }): void {
   currentProgram = program;
   const desiredName = opts?.keepTeamName && teamName ? teamName : program.name;
   teamName = desiredName;
@@ -213,6 +328,13 @@ function applyProgram(program: Program, opts?: { keepTeamName?: boolean }): void
 
   if (programSelectSection) programSelectSection.classList.add("hidden");
   if (gameUI) gameUI.classList.remove("hidden");
+
+  if (!opts?.skipRosterGeneration) {
+    seasonWeek = 1;
+    seasonWins = 0;
+    seasonLosses = 0;
+    generateRosterForProgram(program);
+  }
 
   updateSeasonUI();
 }
@@ -272,7 +394,6 @@ function simulateMatch(
 }
 
 // ---- DOM Elements ----
-const form = document.getElementById("add-wrestler-form") as HTMLFormElement;
 const rosterList = document.getElementById("roster-list") as HTMLUListElement;
 const selectA = document.getElementById("wrestler-a") as HTMLSelectElement;
 const selectB = document.getElementById("wrestler-b") as HTMLSelectElement;
@@ -290,6 +411,8 @@ const trainingSelect = document.getElementById("training-focus") as HTMLSelectEl
 const seasonRecordSpan = document.getElementById("season-record") as HTMLSpanElement;
 const seasonNextBtn = document.getElementById("season-next-btn") as HTMLButtonElement;
 const seasonLog = document.getElementById("season-log") as HTMLDivElement;
+const regenRosterBtn = document.getElementById("regen-roster-btn") as HTMLButtonElement;
+const lineupGrid = document.getElementById("lineup-grid") as HTMLDivElement;
 const programSelectSection = document.getElementById("program-select") as HTMLElement;
 const programGrid = document.getElementById("program-grid") as HTMLDivElement;
 const gameUI = document.getElementById("game-ui") as HTMLElement;
@@ -300,7 +423,6 @@ const switchProgramBtn = document.getElementById("switch-program-btn") as HTMLBu
 
 
 
-
 // ---- Rendering ----
 function refreshRosterUI() {
   rosterList.innerHTML = "";
@@ -308,6 +430,23 @@ function refreshRosterUI() {
     const li = document.createElement("li");
     li.textContent = `${w.name} (${w.weight} lbs, ${w.weightClass}) | OVR ${overallScore(w).toFixed(1)}`;
     rosterList.appendChild(li);
+  }
+
+  if (lineupGrid) {
+    lineupGrid.innerHTML = "";
+    for (const wc of WEIGHT_CLASSES) {
+      const w = roster.find((r) => r.weightClass === wc);
+      const card = document.createElement("div");
+      card.className = "lineup-card";
+      const name = w ? w.name : "Open";
+      const ovr = w ? overallScore(w).toFixed(1) : "--";
+      card.innerHTML = `
+        <h3>${wc} lbs</h3>
+        <p class="name">${name}</p>
+        <p class="meta">${w ? `OVR ${ovr}` : "No wrestler"}</p>
+      `;
+      lineupGrid.appendChild(card);
+    }
   }
 
   const renderOptions = (select: HTMLSelectElement) => {
@@ -322,6 +461,40 @@ function refreshRosterUI() {
 
   renderOptions(selectA);
   renderOptions(selectB);
+}
+
+function renderDualBoard(container: HTMLElement | null, teamA: Team, teamB: Team, result: DualResult) {
+  if (!container) return;
+  const leftColor = currentProgram?.colors?.[0] ?? "#0ea5e9";
+  const rightColor = "#f97316";
+  const boutsHtml = result.bouts
+    .map((b) => {
+      const aWin = b.winnerSide === "A";
+      const bWin = b.winnerSide === "B";
+      const method = b.method === "forfeit" ? "Forfeit" : b.method;
+      const wcLabel = `${b.weightClass} lbs`;
+      return `
+      <div class="dual-bout">
+        <div class="wc">${wcLabel}</div>
+        <div class="wrestler ${aWin ? "win" : bWin ? "loss" : ""}">${b.a ? b.a.name : "Open"}</div>
+        <div class="result ${aWin ? "win" : bWin ? "loss" : ""}">${method}</div>
+        <div class="wrestler ${bWin ? "win" : aWin ? "loss" : ""}">${b.b ? b.b.name : "Open"}</div>
+      </div>`;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="dual-board">
+      <div class="dual-header">
+        <div class="dual-team" style="border: 2px solid ${leftColor}">${teamA.name} (${result.scoreA})</div>
+        <div class="dual-middle">Dual</div>
+        <div class="dual-team" style="border: 2px solid ${rightColor}">${teamB.name} (${result.scoreB})</div>
+      </div>
+      <div class="dual-bouts">
+        ${boutsHtml}
+      </div>
+    </div>
+  `;
 }
 
 // ---- Persistence ----
@@ -376,9 +549,9 @@ function loadRoster(initial = false) {
 
     if (parsed.programId) {
       const found = PROGRAMS.find((p) => p.id === parsed.programId);
-      if (found) applyProgram(found, { keepTeamName: true });
+      if (found) applyProgram(found, { keepTeamName: true, skipRosterGeneration: true });
     } else {
-      applyProgram(PROGRAMS[0], { keepTeamName: true });
+      applyProgram(PROGRAMS[0], { keepTeamName: true, skipRosterGeneration: true });
     }
 
     seasonWeek = parsed.seasonWeek ?? 1;
@@ -407,7 +580,11 @@ function loadRoster(initial = false) {
       });
     }
 
-    refreshRosterUI();
+    if (roster.length === 0 && currentProgram) {
+      generateRosterForProgram(currentProgram);
+    } else {
+      refreshRosterUI();
+    }
     if (!initial) resultLog.textContent = "Roster loaded.";
   } catch (err) {
     console.error(err);
@@ -474,6 +651,7 @@ function simulateDual(teamA: Team, teamB: Team): DualResult {
   let scoreA = 0;
   let scoreB = 0;
   const lines: string[] = [];
+  const bouts: BoutResult[] = [];
 
   lines.push(`${teamA.name} vs ${teamB.name}`);
   lines.push(`--------------------------------`);
@@ -487,12 +665,26 @@ function simulateDual(teamA: Team, teamB: Team): DualResult {
     if (aW && !bW) {
       scoreA += 6;
       lines.push(`${wc}: ${teamA.name} wins by forfeit (6-0) - ${aW.name}`);
+      bouts.push({
+        weightClass: wc,
+        a: aW,
+        winnerSide: "A",
+        method: "forfeit",
+        summary: `${aW.name} wins by forfeit`,
+      });
       continue;
     }
 
     if (!aW && bW) {
       scoreB += 6;
       lines.push(`${wc}: ${teamB.name} wins by forfeit (6-0) - ${bW.name}`);
+      bouts.push({
+        weightClass: wc,
+        b: bW,
+        winnerSide: "B",
+        method: "forfeit",
+        summary: `${bW.name} wins by forfeit`,
+      });
       continue;
     }
 
@@ -504,12 +696,20 @@ function simulateDual(teamA: Team, teamB: Team): DualResult {
 
     const teamStr = winner === aW ? teamA.name : teamB.name;
     lines.push(`${wc}: ${summary} (${teamStr} +${pts})`);
+    bouts.push({
+      weightClass: wc,
+      a: aW!,
+      b: bW!,
+      winnerSide: winner === aW ? "A" : "B",
+      method,
+      summary,
+    });
   }
 
   lines.push(`--------------------------------`);
   lines.push(`Final Team Score: ${teamA.name} ${scoreA} - ${scoreB} ${teamB.name}`);
 
-  return { log: lines.join("\n"), scoreA, scoreB };
+  return { log: lines.join("\n"), scoreA, scoreB, bouts };
 }
 
 function simulateIntraSquadDual(): string {
@@ -628,44 +828,6 @@ function applyTraining(focus: TrainingFocus): string {
 
 
 // ---- Event Listeners ----
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!ensureProgramSelected()) return;
-
-  const name = (document.getElementById("name") as HTMLInputElement).value.trim();
-  const weight = Number((document.getElementById("weight") as HTMLInputElement).value);
-
-  const neutral = clampStat(Number((document.getElementById("neutral") as HTMLInputElement).value));
-  const top = clampStat(Number((document.getElementById("top") as HTMLInputElement).value));
-  const bottom = clampStat(Number((document.getElementById("bottom") as HTMLInputElement).value));
-  const strength = clampStat(Number((document.getElementById("strength") as HTMLInputElement).value));
-  const conditioning = clampStat(Number((document.getElementById("conditioning") as HTMLInputElement).value));
-  const technique = clampStat(Number((document.getElementById("technique") as HTMLInputElement).value));
-
-  if (!name || !weight) {
-    resultLog.textContent = "Name and weight are required.";
-    return;
-  }
-
-  const wrestler: Wrestler = {
-    id: createId(),
-    name,
-    weight,
-    weightClass: getWeightClass(weight),
-    neutral,
-    top,
-    bottom,
-    strength,
-    conditioning,
-    technique,
-  };
-
-  roster.push(wrestler);
-  refreshRosterUI();
-  form.reset();
-  resultLog.textContent = `Added ${name} to the roster.`;
-});
-
 simulateBtn.addEventListener("click", () => {
   if (!ensureProgramSelected()) return;
   if (roster.length < 2) {
@@ -710,14 +872,25 @@ switchProgramBtn.addEventListener("click", () => {
   renderProgramSelect();
 });
 
+regenRosterBtn?.addEventListener("click", () => {
+  if (!ensureProgramSelected() || !currentProgram) return;
+  generateRosterForProgram(currentProgram);
+  seasonWeek = 1;
+  seasonWins = 0;
+  seasonLosses = 0;
+  updateSeasonUI();
+});
+
 teamNameInput.addEventListener("input", () => {
   teamName = teamNameInput.value || "My Team";
 });
 
 vsOpponentBtn.addEventListener("click", () => {
   if (!ensureProgramSelected()) return;
-  const text = simulateDualVsOpponent();
-  vsOpponentLog.textContent = text;
+  const payload = simulateDualVsOpponent();
+  if (!payload) return;
+  renderDualBoard(vsOpponentLog, payload.myTeam, payload.rival, payload.result);
+  vsOpponentLog.classList.add("log"); // ensure styling
 });
 
 seasonNextBtn.addEventListener("click", () => {

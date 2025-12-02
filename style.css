@@ -19,6 +19,38 @@ header h1 {
   font-size: 20px;
 }
 
+.nav {
+  display: flex;
+  gap: 8px;
+  padding: 10px 24px;
+  border-bottom: 1px solid #1f2937;
+  background: #0b1120;
+}
+
+.nav-btn {
+  margin-top: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.nav-btn.active {
+  background: #22c55e;
+  color: #022c22;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  margin-left: 6px;
+}
+
 .card {
   background: #0b1120;
   border-radius: 12px;
@@ -102,6 +134,14 @@ button:hover {
   white-space: pre-line;
 }
 
+.list .record {
+  font-weight: 700;
+}
+
+.list .highlight {
+  background: rgba(34, 197, 94, 0.08);
+}
+
 .field-row button {
   width: 100%;
 }
@@ -113,6 +153,15 @@ button:hover {
 .primary {
   background: #22c55e;
   color: #022c22;
+}
+
+.view {
+  display: none;
+  grid-column: 1 / -1;
+}
+
+.view.active {
+  display: contents;
 }
 
 main {
@@ -291,6 +340,55 @@ main {
   justify-content: flex-end;
 }
 
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.list li {
+  padding: 8px 10px;
+  border-bottom: 1px solid #111827;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.list li:last-child {
+  border-bottom: none;
+}
+
+.list .meta {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.list button {
+  margin-top: 0;
+  padding: 6px 10px;
+}
+
+.log {
+  margin-top: 10px;
+  padding: 8px 10px;
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #020617;
+  font-size: 14px;
+  white-space: pre-line;
+}
+
 .lineup-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -318,6 +416,13 @@ main {
 .lineup-card .meta {
   font-size: 13px;
   color: #9ca3af;
+}
+
+.lineup-card .badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 .dual-board {

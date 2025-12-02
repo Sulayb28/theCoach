@@ -10,6 +10,12 @@
       <h1>Wrestling Coach - Prototype</h1>
     </header>
 
+    <nav class="nav">
+      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+      <button class="nav-btn" data-view="training">Training</button>
+      <button class="nav-btn" data-view="duals">Duals</button>
+    </nav>
+
     <section id="program-select" class="card overlay fullscreen">
       <div class="overlay-content">
         <div class="overlay-copy">
@@ -40,6 +46,10 @@
       <section class="card coach-bar">
         <div class="coach-bar-left">
           <div class="stat">
+            <span class="label">Day</span>
+            <span class="value" id="season-day">1</span>
+          </div>
+          <div class="stat">
             <span class="label">Week</span>
             <span class="value" id="season-week">1</span>
           </div>
@@ -61,79 +71,175 @@
           </select>
         </div>
         <div class="coach-bar-right">
-          <button id="season-next-btn" type="button" class="primary">Next Week</button>
+          <button id="season-next-btn" type="button" class="primary">Next Day</button>
         </div>
       </section>
 
-      <!-- Lineup -->
+      <section id="view-dashboard" class="view active">
       <section class="card">
         <h2>Lineup Board</h2>
+        <div class="field-row">
+          <button id="auto-fill-btn" type="button">Auto-Fill Best</button>
+          <label class="field" style="margin:0;">
+            <span class="label">Allow Bump Up One Class</span>
+            <input id="bump-toggle" type="checkbox" />
+          </label>
+        </div>
         <div id="lineup-grid" class="lineup-grid"></div>
       </section>
 
-      <!-- Roster list -->
-      <section class="card">
-        <h2>Roster</h2>
+        <section class="card">
+          <h2>Roster</h2>
 
-        <div class="field">
-          <label for="team-name">Team Name</label>
-          <input id="team-name" placeholder="e.g., Columbia Lions" />
-        </div>
-
-        <div class="field-row">
-          <button id="regen-roster-btn" type="button">Regenerate Roster</button>
-          <button id="save-btn" type="button">Save Roster</button>
-          <button id="load-btn" type="button">Load Roster</button>
-        </div>
-
-        <ul id="roster-list"></ul>
-      </section>
-
-      <!-- Match sim -->
-      <section class="card">
-        <h2>Quick Match</h2>
-        <p>Select any two wrestlers below and simulate a match.</p>
-
-        <div class="field-row">
           <div class="field">
-            <label for="wrestler-a">Red</label>
-            <select id="wrestler-a"></select>
+            <label for="team-name">Team Name</label>
+            <input id="team-name" placeholder="e.g., Columbia Lions" />
+          </div>
+
+          <div class="field-row">
+            <button id="regen-roster-btn" type="button">Regenerate Roster</button>
+            <button id="save-btn" type="button">Save Roster</button>
+            <button id="load-btn" type="button">Load Roster</button>
+          </div>
+
+          <ul id="roster-list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Recruiting</h2>
+          <div class="field-row">
+            <button id="recruit-generate-btn" type="button">Generate Prospects</button>
+            <button id="recruit-decay-btn" type="button">Advance Interest Tick</button>
+          </div>
+          <div class="grid-two">
+            <div>
+              <h3>Prospects</h3>
+              <ul id="recruit-list" class="list"></ul>
+            </div>
+            <div>
+              <h3>Shortlist</h3>
+              <ul id="shortlist" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Budget</h2>
+          <div class="field">
+            <label for="budget-slider">Training Budget</label>
+            <input id="budget-slider" type="range" min="0" max="100" value="50" />
           </div>
           <div class="field">
-            <label for="wrestler-b">Green</label>
-            <select id="wrestler-b"></select>
+            <label for="nil-slider">NIL/Recruiting Budget</label>
+            <input id="nil-slider" type="range" min="0" max="100" value="50" />
           </div>
-        </div>
+        </section>
 
-        <button id="simulate-btn">Simulate Match</button>
+        <section class="card">
+          <h2>Schedule & Scouting</h2>
+          <div class="field-row">
+            <button id="schedule-generate-btn" type="button">Generate Schedule</button>
+            <button id="scout-btn" type="button">Scout Next Opponent</button>
+          </div>
+          <div class="grid-two">
+            <div>
+              <h3>Upcoming</h3>
+              <ul id="schedule-list" class="list"></ul>
+            </div>
+            <div>
+              <h3>Results</h3>
+              <ul id="results-list" class="list"></ul>
+            </div>
+          </div>
+          <div id="scout-report" class="log"></div>
+        </section>
 
-        <div id="result-log" class="log"></div>
+        <section class="card">
+          <h2>Coach Goals</h2>
+          <ul id="goals-list" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Weekly Summary</h2>
+          <ul id="weekly-summary" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Standings</h2>
+          <ul id="standings-list" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Postseason</h2>
+          <div id="postseason-log" class="log"></div>
+        </section>
+
+        <section class="card">
+          <h2>Weekly Coaching Decisions</h2>
+          <ul id="coaching-suggestions" class="list"></ul>
+          <div class="field-row">
+            <button id="rest-fatigue-btn" type="button">Rest High Fatigue</button>
+            <button id="heal-minors-btn" type="button">Treat Minor Injuries</button>
+          </div>
+        </section>
       </section>
 
-      <!-- NEW: Intra-squad Dual Meet -->
-      <section class="card">
-        <h2>Intra-squad Dual Meet</h2>
-        <p>Splits your roster into Red vs Green by weight class and simulates a full dual.</p>
-
-        <button id="dual-btn" type="button">Simulate Intra-squad Dual</button>
-
-        <div id="dual-log" class="log"></div>
+      <section id="view-training" class="view">
+        <section class="card">
+          <h2>Training & Season Log</h2>
+          <div id="season-log" class="log"></div>
+        </section>
       </section>
 
-      <!-- Dual vs Rival -->
-      <section class="card">
-        <h2>Dual vs Rival Team</h2>
-        <p>Use your lineup against a generated rival team with similar strength.</p>
+      <section id="view-duals" class="view">
+        <section class="card">
+          <h2>Dual Strategy</h2>
+          <div class="field">
+            <label class="label">Approach</label>
+            <select id="strategy-select">
+              <option value="balanced">Balanced</option>
+              <option value="aggressive">Aggressive</option>
+              <option value="conservative">Conservative</option>
+            </select>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Quick Match</h2>
+          <p>Select any two wrestlers below and simulate a match.</p>
 
-        <button id="vs-opponent-btn" type="button">Simulate Dual vs Rival</button>
+          <div class="field-row">
+            <div class="field">
+              <label for="wrestler-a">Red</label>
+              <select id="wrestler-a"></select>
+            </div>
+            <div class="field">
+              <label for="wrestler-b">Green</label>
+              <select id="wrestler-b"></select>
+            </div>
+          </div>
 
-        <div id="vs-opponent-log" class="log"></div>
-      </section>
+          <button id="simulate-btn">Simulate Match</button>
 
-      <!-- Season -->
-      <section class="card">
-        <h2>Season</h2>
-        <div id="season-log" class="log"></div>
+          <div id="result-log" class="log"></div>
+        </section>
+
+        <section class="card">
+          <h2>Intra-squad Dual Meet</h2>
+          <p>Splits your roster into Red vs Green by weight class and simulates a full dual.</p>
+
+          <button id="dual-btn" type="button">Simulate Intra-squad Dual</button>
+
+          <div id="dual-log" class="log"></div>
+        </section>
+
+        <section class="card">
+          <h2>Dual vs Rival Team</h2>
+          <p>Use your lineup against a generated rival team with similar strength.</p>
+
+          <button id="vs-opponent-btn" type="button">Simulate Dual vs Rival</button>
+
+          <div id="vs-opponent-log" class="log"></div>
+        </section>
       </section>
     </main>
 

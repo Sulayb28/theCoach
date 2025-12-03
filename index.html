@@ -11,7 +11,8 @@
     </header>
 
     <nav class="nav">
-      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+      <button class="nav-btn active" data-view="home">Home</button>
+      <button class="nav-btn" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="training">Training</button>
       <button class="nav-btn" data-view="duals">Duals</button>
     </nav>
@@ -30,6 +31,58 @@
     </section>
 
     <main id="game-ui" class="hidden">
+      <section id="view-home" class="view active">
+        <section class="card">
+          <div class="coach-menu-header">
+            <div>
+              <p class="eyebrow">Coach's Menu</p>
+              <h2 id="home-team-name">Your School</h2>
+            </div>
+            <div class="dual-day">
+              <div id="home-day-label">Wednesday</div>
+              <button id="home-next-day-btn" class="primary">Next Day</button>
+            </div>
+          </div>
+          <div class="tile-grid">
+            <button class="tile-card" data-target="dashboard">
+              <div class="tile-title">District Ranking</div>
+              <div class="tile-body" id="tile-district-rank">--</div>
+            </button>
+            <button class="tile-card" data-target="training">
+              <div class="tile-title">Training</div>
+              <div class="tile-body">Adjust focus</div>
+            </button>
+            <button class="tile-card" data-target="dashboard">
+              <div class="tile-title">School Profile</div>
+              <div class="tile-body">Roster & prestige</div>
+            </button>
+            <button class="tile-card" data-target="dashboard">
+              <div class="tile-title">Regional Ranking</div>
+              <div class="tile-body" id="tile-regional-rank">--</div>
+            </button>
+            <button class="tile-card" data-target="dashboard">
+              <div class="tile-title">Team Lineup</div>
+              <div class="tile-body">Set starters</div>
+            </button>
+            <button class="tile-card" data-target="dashboard">
+              <div class="tile-title">Coach's Profile</div>
+              <div class="tile-body">Goals & prestige</div>
+            </button>
+            <button class="tile-card" data-target="dashboard">
+              <div class="tile-title">State Ranking</div>
+              <div class="tile-body" id="tile-state-rank">--</div>
+            </button>
+            <button class="tile-card" data-target="duals">
+              <div class="tile-title">Duals</div>
+              <div class="tile-body">Scouting & sims</div>
+            </button>
+            <button class="tile-card" data-target="dashboard">
+              <div class="tile-title">Tutorial</div>
+              <div class="tile-body">Learn the ropes</div>
+            </button>
+          </div>
+        </section>
+      </section>
       <section class="card program-banner">
         <div>
           <p class="eyebrow">Program</p>
@@ -192,6 +245,15 @@
       </section>
 
       <section id="view-duals" class="view">
+        <section class="card dual-header-card">
+          <div class="dual-team-bar" id="dual-team-left">Your Team</div>
+          <div class="dual-day">
+            <div id="dual-day-label">Wednesday</div>
+            <button id="dual-next-day-btn" class="primary">Next Day</button>
+          </div>
+          <div class="dual-team-bar" id="dual-team-right">Opponent</div>
+        </section>
+
         <section class="card">
           <h2>Dual Strategy</h2>
           <div class="field">
@@ -202,7 +264,20 @@
               <option value="conservative">Conservative</option>
             </select>
           </div>
+          <button id="vs-opponent-btn" type="button" class="primary">Simulate Scheduled Dual</button>
         </section>
+
+        <section class="card">
+          <h2>Dual Board</h2>
+          <div id="vs-opponent-log" class="dual-board"></div>
+        </section>
+
+        <section class="card">
+          <h2>Intra-squad Dual</h2>
+          <button id="dual-btn" type="button">Simulate Intra-squad</button>
+          <div id="dual-log" class="log"></div>
+        </section>
+
         <section class="card">
           <h2>Quick Match</h2>
           <p>Select any two wrestlers below and simulate a match.</p>
@@ -221,24 +296,6 @@
           <button id="simulate-btn">Simulate Match</button>
 
           <div id="result-log" class="log"></div>
-        </section>
-
-        <section class="card">
-          <h2>Intra-squad Dual Meet</h2>
-          <p>Splits your roster into Red vs Green by weight class and simulates a full dual.</p>
-
-          <button id="dual-btn" type="button">Simulate Intra-squad Dual</button>
-
-          <div id="dual-log" class="log"></div>
-        </section>
-
-        <section class="card">
-          <h2>Dual vs Rival Team</h2>
-          <p>Use your lineup against a generated rival team with similar strength.</p>
-
-          <button id="vs-opponent-btn" type="button">Simulate Dual vs Rival</button>
-
-          <div id="vs-opponent-log" class="log"></div>
         </section>
       </section>
     </main>

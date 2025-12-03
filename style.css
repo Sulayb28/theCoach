@@ -164,6 +164,50 @@ button:hover {
   display: contents;
 }
 
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.tile-card {
+  background: #1f2937;
+  border: 1px solid #111827;
+  border-radius: 10px;
+  padding: 10px;
+  color: #e5e7eb;
+  text-align: center;
+  min-height: 110px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.tile-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tile-body {
+  font-size: 18px;
+}
+
+.coach-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .coach-menu-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
 main {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -489,4 +533,35 @@ main {
 
 .dual-bout .loss {
   color: #ef4444;
+}
+
+.dual-header-card {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.dual-team-bar {
+  background: #0f172a;
+  padding: 10px;
+  text-align: center;
+  font-weight: 700;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+}
+
+.dual-day {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}
+
+.dual-day #dual-day-label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.dual-day button {
+  width: 120px;
 }

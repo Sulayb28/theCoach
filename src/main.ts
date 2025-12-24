@@ -1,11 +1,13 @@
 // ---- Types ----
 
 import { simulateDual, teamPointsForMethod } from "./core/dualMeet";
-import { simulateMatch, WinMethod } from "./core/match";
+import { simulateMatch } from "./core/match";
+import type { WinMethod } from "./core/match";
 import { createId, pickRandom, randomDelta } from "./core/rng";
 import { WEIGHT_CLASSES } from "./data/weights";
 import { SCHOOL_NAMES } from "./schools";
-import { saveState, loadState, SavedState } from "./store/storage";
+import { saveState, loadState } from "./store/storage";
+import type { SavedState } from "./store/storage";
 import { logToElement } from "./ui/logger";
 import { buildLineupCard, ensureLineupSelections, renderRosterList } from "./ui/rosterUI";
 
@@ -1154,6 +1156,9 @@ const goalsList = document.getElementById("goals-list") as HTMLUListElement;
 const weeklySummaryList = document.getElementById("weekly-summary") as HTMLUListElement;
 const standingsList = document.getElementById("standings-list") as HTMLUListElement | null;
 const postseasonLogDiv = document.getElementById("postseason-log") as HTMLDivElement | null;
+const resultsDayEl = document.getElementById("results-day") as HTMLSpanElement | null;
+const resultsWeekEl = document.getElementById("results-week") as HTMLSpanElement | null;
+const resultsRecordEl = document.getElementById("results-record") as HTMLSpanElement | null;
 const restFatigueBtn = document.getElementById("rest-fatigue-btn") as HTMLButtonElement | null;
 const healMinorsBtn = document.getElementById("heal-minors-btn") as HTMLButtonElement | null;
 const strategySelect = document.getElementById("strategy-select") as HTMLSelectElement | null;
@@ -2056,6 +2061,9 @@ function updateSeasonUI() {
   if (seasonDaySpan) seasonDaySpan.textContent = dayLabel;
   if (seasonWeekSpan) seasonWeekSpan.textContent = String(seasonWeek);
   if (seasonRecordSpan) seasonRecordSpan.textContent = `${seasonWins}-${seasonLosses}`;
+  if (resultsDayEl) resultsDayEl.textContent = dayLabel;
+  if (resultsWeekEl) resultsWeekEl.textContent = String(seasonWeek);
+  if (resultsRecordEl) resultsRecordEl.textContent = `${seasonWins}-${seasonLosses}`;
   if (budgetSlider) budgetSlider.value = String(budget);
   if (nilSlider) nilSlider.value = String(nilBudget);
   if (homeDayLabel) {
@@ -2658,9 +2666,9 @@ navButtons.forEach((btn) => {
   });
 });
 
-document.querySelectorAll<HTMLButtonElement>(".tile-card").forEach((tile) => {
-  tile.addEventListener("click", () => {
-    const target = tile.dataset.target;
+document.querySelectorAll<HTMLElement>("[data-target]").forEach((el) => {
+  el.addEventListener("click", () => {
+    const target = (el as HTMLElement).dataset.target;
     if (!target) return;
     setActiveView(target);
   });

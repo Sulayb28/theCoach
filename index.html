@@ -15,6 +15,7 @@
       <button class="nav-btn" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="training">Training</button>
       <button class="nav-btn" data-view="duals">Duals</button>
+      <button class="nav-btn" data-view="results">Results</button>
     </nav>
 
     <section id="program-select" class="card overlay fullscreen">
@@ -71,6 +72,10 @@
             <button class="tile-card" data-target="dashboard">
               <div class="tile-title">State Ranking</div>
               <div class="tile-body" id="tile-state-rank">--</div>
+            </button>
+            <button class="tile-card" data-target="results">
+              <div class="tile-title">Competition Results</div>
+              <div class="tile-body">Duals & tournaments</div>
             </button>
             <button class="tile-card" data-target="duals">
               <div class="tile-title">Duals</div>
@@ -199,9 +204,11 @@
               <h3>Upcoming</h3>
               <ul id="schedule-list" class="list"></ul>
             </div>
-            <div>
-              <h3>Results</h3>
-              <ul id="results-list" class="list"></ul>
+            <div class="results-callout" data-target="results">
+              <p class="eyebrow">Competition Results</p>
+              <h3>Open full recap page</h3>
+              <p class="meta">View dual meets, tournaments, and season standings on their own screen.</p>
+              <button type="button" class="ghost" aria-label="Open results page">View Results</button>
             </div>
           </div>
           <div id="scout-report" class="log"></div>
@@ -213,27 +220,59 @@
         </section>
 
         <section class="card">
-          <h2>Weekly Summary</h2>
-          <ul id="weekly-summary" class="list"></ul>
-        </section>
-
-        <section class="card">
-          <h2>Standings</h2>
-          <ul id="standings-list" class="list"></ul>
-        </section>
-
-        <section class="card">
-          <h2>Postseason</h2>
-          <div id="postseason-log" class="log"></div>
-        </section>
-
-        <section class="card">
           <h2>Weekly Coaching Decisions</h2>
           <ul id="coaching-suggestions" class="list"></ul>
           <div class="field-row">
             <button id="rest-fatigue-btn" type="button">Rest High Fatigue</button>
             <button id="heal-minors-btn" type="button">Treat Minor Injuries</button>
           </div>
+        </section>
+      </section>
+
+      <section id="view-results" class="view">
+        <section class="card results-hero">
+          <div>
+            <p class="eyebrow">Competition Hub</p>
+            <h2>Dual & Tournament Results</h2>
+            <p class="meta">A dedicated page to review every dual meet, tournament bracket, and how your program stacks up.</p>
+          </div>
+          <div class="results-meta">
+            <div>
+              <span class="label">Season Day</span>
+              <span class="value" id="results-day">--</span>
+            </div>
+            <div>
+              <span class="label">Season Week</span>
+              <span class="value" id="results-week">--</span>
+            </div>
+            <div>
+              <span class="label">Record</span>
+              <span class="value" id="results-record">--</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card results-columns">
+          <div>
+            <h3>Results Ledger</h3>
+            <p class="meta">Completed duals and tournament rounds are archived here for a quick recap.</p>
+            <ul id="results-list" class="list results-stack"></ul>
+          </div>
+          <div class="results-side">
+            <div>
+              <h3>Weekly Summary</h3>
+              <ul id="weekly-summary" class="list"></ul>
+            </div>
+            <div>
+              <h3>Standings</h3>
+              <ul id="standings-list" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Postseason & Tournament Highlights</h3>
+          <div id="postseason-log" class="log"></div>
         </section>
       </section>
 

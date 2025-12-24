@@ -1,6 +1,6 @@
 // Dual meet simulation logic
 import { WEIGHT_CLASSES } from "../data/weights";
-import { simulateMatch, WinMethod, Wrestler } from "./match";
+import { simulateMatch, type WinMethod, type Wrestler } from "./match";
 
 export interface Team {
   name: string;

@@ -1,11 +1,11 @@
 // ---- Types ----
 
 import { simulateDual, teamPointsForMethod } from "./core/dualMeet";
-import { simulateMatch, WinMethod } from "./core/match";
+import { simulateMatch, type WinMethod } from "./core/match";
 import { createId, pickRandom, randomDelta } from "./core/rng";
 import { WEIGHT_CLASSES } from "./data/weights";
 import { SCHOOL_NAMES } from "./schools";
-import { saveState, loadState, SavedState } from "./store/storage";
+import { saveState, loadState, type SavedState } from "./store/storage";
 import { logToElement } from "./ui/logger";
 import { buildLineupCard, ensureLineupSelections, renderRosterList } from "./ui/rosterUI";
 
@@ -433,13 +433,13 @@ function renderGazette(payload: GazettePayload): void {
   const titleEl = document.getElementById("gazette-title") as HTMLDivElement | null;
   if (titleEl) {
     const weekLabel = Math.max(1, seasonWeek - 1);
-    titleEl.textContent = `WRESTLING GAZETTE Ã¢â‚¬â€œ Week ${weekLabel}`;
+    titleEl.textContent = `WRESTLING GAZETTE - Week ${weekLabel}`;
   }
 
   const main = payload.stories[0];
   gazetteHeadlineEl.textContent = main.headline;
   gazetteBlurbEl.textContent = main.blurb;
-  gazetteScoreEl.textContent = `Final: ${payload.myTeam.name} ${payload.scoreA} Ã¢â‚¬â€œ ${payload.scoreB} ${payload.opponent.name}`;
+  gazetteScoreEl.textContent = `Final: ${payload.myTeam.name} ${payload.scoreA} - ${payload.scoreB} ${payload.opponent.name}`;
   gazetteLabelEl.textContent = payload.label || computeOutcomeLabel(payload);
 
   gazetteSecondaryEl!.innerHTML = "";

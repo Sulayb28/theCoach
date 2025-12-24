@@ -66,6 +66,65 @@ interface BoutResult {
   summary: string;
 }
 
+interface GazetteStory {
+  type:
+    | "team_upset"
+    | "individual_upset"
+    | "blowout"
+    | "clutch_match"
+    | "injury"
+    | "star_dominated"
+    | "default";
+  importance: number;
+  headline: string;
+  blurb: string;
+  tags?: string[];
+}
+
+interface GazettePayload {
+  stories: GazetteStory[];
+  scoreA: number;
+  scoreB: number;
+  myTeam: Team;
+  opponent: Team;
+  outcome: "WIN" | "LOSS" | "TIE";
+  label: string;
+  isPostseason?: boolean;
+}
+
+interface ReactionOption {
+  id: string;
+  label: string;
+  apply: () => string;
+}
+
+interface LiveBoutState {
+  weightClass: number;
+  a?: Wrestler;
+  b?: Wrestler;
+  result?: BoutResult;
+}
+
+interface CoachingModifier {
+  type: "push" | "solid";
+  remaining: number;
+}
+
+interface LiveDualState {
+  active: boolean;
+  myTeam: Team;
+  opponent: Team;
+  bouts: LiveBoutState[];
+  currentIndex: number;
+  scoreA: number;
+  scoreB: number;
+  strategy: "balanced" | "aggressive" | "conservative";
+  modifiers: CoachingModifier[];
+  isPostseason?: boolean;
+  scheduledWeek?: number;
+  trainingNote?: string;
+}
+
 type TrainingFocus =
   | "balanced"
   | "neutral"
@@ -153,6 +212,266 @@ function setActiveView(viewKey: string): void {
   }
 }
 
+function ensureGazetteOverlay(): void {
+  if (gazetteOverlay) return;
+  const style = document.createElement("style");
+  style.textContent = `
+    #gazette-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      z-index: 999;
+    }
+    #gazette-overlay.active { display: flex; }
+    .gazette-card {
+      background: #f8f5ef;
+      color: #111;
+      width: min(720px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 16px;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: "Georgia", serif;
+    }
+    .gazette-banner { text-align: center; font-weight: 700; letter-spacing: 1px; font-size: 1rem; }
+    .gazette-headline { font-size: 1.4rem; margin: 0; }
+    .gazette-subhead { font-size: 0.95rem; margin: 0; color: #333; }
+    .gazette-score { font-weight: 600; font-size: 1rem; }
+    .gazette-secondary { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .gazette-secondary li { border-top: 1px solid #ddd; padding-top: 6px; }
+    .gazette-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.6px; color: #555; }
+    .gazette-actions { display: flex; flex-direction: column; gap: 6px; }
+    .gazette-actions button { padding: 10px; font-size: 0.95rem; border-radius: 6px; border: 1px solid #222; background: #fff; }
+    .gazette-footer { display: flex; gap: 8px; flex-wrap: wrap; }
+    .gazette-footer button { flex: 1 1 140px; padding: 10px; border-radius: 6px; border: none; font-weight: 600; }
+  `;
+  document.head.appendChild(style);
+
+  gazetteOverlay = document.createElement("div");
+  gazetteOverlay.id = "gazette-overlay";
+  gazetteOverlay.innerHTML = `
+    <div class="gazette-card">
+      <div class="gazette-banner" id="gazette-title"></div>
+      <span class="gazette-label" id="gazette-label"></span>
+      <h2 class="gazette-headline" id="gazette-headline"></h2>
+      <div class="gazette-score" id="gazette-score"></div>
+      <p class="gazette-subhead" id="gazette-blurb"></p>
+      <ul class="gazette-secondary" id="gazette-secondary"></ul>
+      <div class="gazette-actions" id="gazette-reactions"></div>
+      <div id="gazette-feedback" class="meta"></div>
+      <div class="gazette-footer">
+        <button id="gazette-continue">Continue</button>
+        <button id="gazette-box">View Box Score</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(gazetteOverlay);
+  gazetteHeadlineEl = document.getElementById("gazette-headline") as HTMLHeadingElement;
+  gazetteBlurbEl = document.getElementById("gazette-blurb") as HTMLParagraphElement;
+  gazetteScoreEl = document.getElementById("gazette-score") as HTMLDivElement;
+  gazetteSecondaryEl = document.getElementById("gazette-secondary") as HTMLUListElement;
+  gazetteLabelEl = document.getElementById("gazette-label") as HTMLSpanElement;
+  gazetteReactionEl = document.getElementById("gazette-reactions") as HTMLDivElement;
+  gazetteFeedbackEl = document.getElementById("gazette-feedback") as HTMLDivElement;
+  gazetteContinueBtn = document.getElementById("gazette-continue") as HTMLButtonElement;
+  gazetteBoxBtn = document.getElementById("gazette-box") as HTMLButtonElement;
+}
+
+function ensureLiveDualUI(): void {
+  if (liveDualView) return;
+  liveDualView = document.createElement("div");
+  liveDualView.id = "view-live-dual";
+  liveDualView.className = "view";
+  liveDualView.innerHTML = `
+    <div class="panel">
+      <h2 id="live-title">Live Dual</h2>
+      <div id="live-score" class="meta"></div>
+      <div id="live-strategy" class="meta"></div>
+    </div>
+    <div class="panel" id="live-bout-card">No bout yet.</div>
+    <div class="panel" id="live-buttons"></div>
+    <div class="panel">
+      <button id="live-start-btn" class="primary-btn">Start Dual</button>
+    </div>
+  `;
+  const host = document.getElementById("game-ui") || document.body;
+  host.appendChild(liveDualView);
+  views.push(liveDualView);
+  liveTitleEl = document.getElementById("live-title");
+  liveScoreEl = document.getElementById("live-score");
+  liveBoutEl = document.getElementById("live-bout-card");
+  liveButtonsEl = document.getElementById("live-buttons");
+  liveStartBtn = document.getElementById("live-start-btn") as HTMLButtonElement;
+  liveStrategyEl = document.getElementById("live-strategy");
+  if (liveStartBtn) {
+    liveStartBtn.addEventListener("click", () => {
+      if (!liveDualState) return;
+      advanceLiveBout();
+    });
+  }
+}
+
+function computeOutcomeLabel(payload: GazettePayload): string {
+  const margin = Math.abs(payload.scoreA - payload.scoreB);
+  const upset = payload.stories.find((s) => s.type === "team_upset");
+  if (payload.outcome === "WIN" && upset) return "Upset Win";
+  if (payload.outcome === "WIN" && margin >= 12) return "Statement Victory";
+  if (payload.outcome === "WIN" && margin <= 3) return "Edge-Out Win";
+  if (payload.outcome === "LOSS" && margin >= 12) return "Tough Loss";
+  if (payload.outcome === "LOSS" && margin <= 3) return "Close Loss";
+  return payload.outcome === "TIE" ? "Split Points" : payload.outcome === "WIN" ? "Solid Win" : "Loss";
+}
+
+function buildCoachReactions(payload: GazettePayload): ReactionOption[] {
+  const margin = Math.abs(payload.scoreA - payload.scoreB);
+  const upset = payload.stories.some((s) => s.type === "team_upset");
+  const starters = getStarters();
+  const reactions: ReactionOption[] = [];
+
+  const boostMorale = (delta: number) => {
+    for (const w of roster) {
+      w.morale = clampStat((w.morale || 70) + delta);
+    }
+  };
+  const tweakFormStarters = (delta: number) => {
+    for (const w of starters) {
+      w.form = Math.max(-2, Math.min(2, (w.form || 0) + delta));
+      w.formDays = Math.max(w.formDays || 0, 4);
+    }
+  };
+  const tweakFatigueStarters = (delta: number) => {
+    for (const w of starters) {
+      w.fatigue = Math.max(0, Math.min(100, (w.fatigue || 0) + delta));
+    }
+  };
+
+  if (payload.outcome === "WIN") {
+    reactions.push({
+      id: "praise",
+      label: "Praise the team (morale up)",
+      apply: () => {
+        boostMorale(4);
+        tweakFormStarters(1);
+        return "You praised the team. Morale rises across the room.";
+      },
+    });
+    reactions.push({
+      id: "humble",
+      label: "Stay humble (small morale + prestige)",
+      apply: () => {
+        boostMorale(2);
+        if (currentProgram) currentProgram.prestige = clampStat((currentProgram.prestige || 80) + 1);
+        return "You kept the team grounded. Prestige bumps slightly.";
+      },
+    });
+    reactions.push({
+      id: "focus",
+      label: "Focus on next week (form up, rest starters)",
+      apply: () => {
+        tweakFormStarters(1);
+        tweakFatigueStarters(-5);
+        return "Starters reset focus. Fatigue eases a bit.";
+      },
+    });
+    if (upset) reactions[0].label = "Celebrate the upset (big morale boost)";
+  } else {
+    reactions.push({
+      id: "meeting",
+      label: "Team meeting (steady morale)",
+      apply: () => {
+        for (const w of roster) {
+          w.morale = clampStat(((w.morale || 70) * 0.8 + 70 * 0.2));
+          if ((w.form || 0) < 0) w.form = Math.min(0, (w.form || 0) + 1);
+        }
+        return "You held a meeting. Morale normalizes.";
+      },
+    });
+    reactions.push({
+      id: "hard-practice",
+      label: "Hard practice (fatigue up, small development)",
+      apply: () => {
+        for (const w of starters) {
+          w.fatigue = Math.min(100, (w.fatigue || 0) + 6);
+          w.conditioning = clampStat(w.conditioning + 1);
+          w.technique = clampStat(w.technique + 1);
+        }
+        return "Extra drills scheduled. Conditioning and technique rise slightly.";
+      },
+    });
+    reactions.push({
+      id: "reset",
+      label: "Let it go (no change)",
+      apply: () => "You chose to move on quickly.",
+    });
+    if (margin <= 3) reactions[0].label = "Close loss chat (morale steady)";
+  }
+
+  return reactions.slice(0, 3);
+}
+
+function renderGazette(payload: GazettePayload): void {
+  ensureGazetteOverlay();
+  if (!gazetteOverlay || !gazetteHeadlineEl || !gazetteBlurbEl || !gazetteScoreEl || !gazetteSecondaryEl || !gazetteLabelEl || !gazetteReactionEl || !gazetteFeedbackEl || !gazetteContinueBtn || !gazetteBoxBtn) return;
+
+  gazetteReactionChosen = false;
+
+  const titleEl = document.getElementById("gazette-title") as HTMLDivElement | null;
+  if (titleEl) {
+    const weekLabel = Math.max(1, seasonWeek - 1);
+    titleEl.textContent = `WRESTLING GAZETTE Ã¢â‚¬â€œ Week ${weekLabel}`;
+  }
+
+  const main = payload.stories[0];
+  gazetteHeadlineEl.textContent = main.headline;
+  gazetteBlurbEl.textContent = main.blurb;
+  gazetteScoreEl.textContent = `Final: ${payload.myTeam.name} ${payload.scoreA} Ã¢â‚¬â€œ ${payload.scoreB} ${payload.opponent.name}`;
+  gazetteLabelEl.textContent = payload.label || computeOutcomeLabel(payload);
+
+  gazetteSecondaryEl!.innerHTML = "";
+  payload.stories.slice(1, 5).forEach((s) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<strong>${s.headline}</strong><div class="meta">${s.blurb}</div>`;
+    gazetteSecondaryEl!.appendChild(li);
+  });
+
+  gazetteFeedbackEl!.textContent = "";
+  gazetteReactionEl!.innerHTML = "";
+  const reactions = buildCoachReactions(payload);
+  reactions.forEach((opt) => {
+    const btn = document.createElement("button");
+    btn.textContent = opt.label;
+    btn.addEventListener("click", () => {
+      if (gazetteReactionChosen) return;
+      gazetteReactionChosen = true;
+      const feedback = opt.apply();
+      gazetteFeedbackEl!.textContent = feedback;
+      Array.from(gazetteReactionEl!.querySelectorAll("button")).forEach((b) => ((b as HTMLButtonElement).disabled = true));
+      refreshRosterUI();
+      renderStandings();
+      saveRoster();
+    });
+    gazetteReactionEl!.appendChild(btn);
+  });
+
+  gazetteContinueBtn.onclick = () => {
+    gazetteOverlay!.classList.remove("active");
+    setActiveView("home");
+  };
+  gazetteBoxBtn.onclick = () => {
+    gazetteOverlay!.classList.remove("active");
+    setActiveView("duals");
+  };
+
+  gazetteOverlay.classList.add("active");
+}
 function renderStandings(): void {
   if (!standingsList) return;
   standingsList.innerHTML = "";
@@ -223,6 +542,8 @@ let postseasonPlayed = false;
 let dualDay = 3; // Wednesday (1=Mon)
 let tournamentDay = 6; // Saturday
 const OFFSEASON_DEV_BONUS = 3;
+let gazetteReactionChosen = false;
+let liveDualState: LiveDualState | null = null;
 
 const STORAGE_KEY = "wcg:save:v2";
 const LEGACY_STORAGE_KEY = "wcg:roster:v1";
@@ -761,6 +1082,7 @@ function applyProgram(program: Program, opts?: { keepTeamName?: boolean; skipRos
   const desiredName = opts?.keepTeamName && teamName ? teamName : program.name;
   teamName = desiredName;
   initLeague();
+  liveDualState = null;
   if (teamNameInput) teamNameInput.value = teamName;
   if (programNameEl) programNameEl.textContent = program.name;
   if (programBlurbEl) programBlurbEl.textContent = program.blurb;
@@ -926,6 +1248,7 @@ const dualLog = document.getElementById("dual-log") as HTMLDivElement;
 const teamNameInput = document.getElementById("team-name") as HTMLInputElement;
 const vsOpponentBtn = document.getElementById("vs-opponent-btn") as HTMLButtonElement;
 const vsOpponentLog = document.getElementById("vs-opponent-log") as HTMLDivElement;
+const quickSimBtn = document.getElementById("quick-sim-btn") as HTMLButtonElement | null;
 const seasonDaySpan = document.getElementById("season-day") as HTMLSpanElement;
 const seasonWeekSpan = document.getElementById("season-week") as HTMLSpanElement;
 const trainingSelect = document.getElementById("training-focus") as HTMLSelectElement;
@@ -973,6 +1296,23 @@ const programNameEl = document.getElementById("program-name") as HTMLElement;
 const programBlurbEl = document.getElementById("program-blurb") as HTMLElement;
 const programPrestigeEl = document.getElementById("program-prestige") as HTMLElement;
 const switchProgramBtn = document.getElementById("switch-program-btn") as HTMLButtonElement;
+let gazetteOverlay = document.getElementById("gazette-overlay") as HTMLDivElement | null;
+let gazetteHeadlineEl: HTMLHeadingElement | null = null;
+let gazetteBlurbEl: HTMLParagraphElement | null = null;
+let gazetteScoreEl: HTMLDivElement | null = null;
+let gazetteSecondaryEl: HTMLUListElement | null = null;
+let gazetteLabelEl: HTMLSpanElement | null = null;
+let gazetteReactionEl: HTMLDivElement | null = null;
+let gazetteFeedbackEl: HTMLDivElement | null = null;
+let gazetteContinueBtn: HTMLButtonElement | null = null;
+let gazetteBoxBtn: HTMLButtonElement | null = null;
+let liveDualView: HTMLElement | null = null;
+let liveTitleEl: HTMLElement | null = null;
+let liveScoreEl: HTMLElement | null = null;
+let liveBoutEl: HTMLElement | null = null;
+let liveButtonsEl: HTMLElement | null = null;
+let liveStartBtn: HTMLButtonElement | null = null;
+let liveStrategyEl: HTMLElement | null = null;
 
 
 
@@ -1116,6 +1456,7 @@ interface SavedState {
   signedRecruits?: Prospect[];
   prestige?: number;
   postseasonPlayed?: boolean;
+  liveDualState?: LiveDualState | null;
 }
 
 
@@ -1156,6 +1497,7 @@ function saveRoster() {
     signedRecruits,
     prestige: currentProgram?.prestige,
     postseasonPlayed,
+    liveDualState,
   };
   try {
 
@@ -1290,6 +1632,7 @@ function loadRoster(initial = false) {
       currentProgram.prestige = parsed.prestige;
     }
     postseasonPlayed = parsed.postseasonPlayed || false;
+    liveDualState = parsed.liveDualState || null;
 
     if (roster.length === 0 && currentProgram) {
       generateRosterForProgram(currentProgram);
@@ -1520,6 +1863,195 @@ function simulateDual(teamA: Team, teamB: Team): DualResult {
   return { log: lines.join("\n"), scoreA, scoreB, bouts };
 }
 
+function getRatingByName(name: string): number {
+  const found = league.find((t) => t.name === name);
+  return found?.rating ?? 1200;
+}
+
+function getStarters(): Wrestler[] {
+  const starters: Wrestler[] = [];
+  for (const wc of WEIGHT_CLASSES) {
+    const id = lineupSelections[wc];
+    if (!id) continue;
+    const w = roster.find((r) => r.id === id);
+    if (w) starters.push(w);
+  }
+  return starters;
+}
+
+function generateDualStories(myTeam: Team, rival: Team, result: DualResult, outcome: "WIN" | "LOSS" | "TIE", isPostseason = false): GazetteStory[] {
+  const stories: GazetteStory[] = [];
+  const margin = Math.abs(result.scoreA - result.scoreB);
+  const myRating = getRatingByName(myTeam.name);
+  const oppRating = getRatingByName(rival.name);
+  const ratingDiff = myRating - oppRating;
+
+  const upsetWin = outcome === "WIN" && ratingDiff < -50;
+  const upsetLoss = outcome === "LOSS" && ratingDiff > 50;
+  const blowout = margin >= 15;
+  const clutch = margin <= 3;
+
+  if (upsetWin) {
+    stories.push({
+      type: "team_upset",
+      importance: 100 + Math.abs(ratingDiff),
+      headline: `${myTeam.name} shocks ${rival.name}`,
+      blurb: `${myTeam.name} toppled a higher-rated ${rival.name} squad by ${result.scoreA}-${result.scoreB}${isPostseason ? " in postseason action." : "."}`,
+      tags: ["team", "upset"],
+    });
+  } else if (upsetLoss) {
+    stories.push({
+      type: "team_upset",
+      importance: 90 + Math.abs(ratingDiff),
+      headline: `${rival.name} stuns ${myTeam.name}`,
+      blurb: `${rival.name} capitalized on mistakes to win ${result.scoreB}-${result.scoreA}${isPostseason ? " and advance." : "."}`,
+      tags: ["team", "upset"],
+    });
+  }
+
+  if (blowout) {
+    stories.push({
+      type: "blowout",
+      importance: 70 + margin,
+      headline: `${result.scoreA > result.scoreB ? myTeam.name : rival.name} rolls in blowout`,
+      blurb: `The dual was never in doubt as the margin hit ${margin} points.`,
+      tags: ["blowout"],
+    });
+  }
+
+  if (clutch && !blowout) {
+    stories.push({
+      type: "clutch_match",
+      importance: 65,
+      headline: `Decided in the final bouts`,
+      blurb: `${myTeam.name} ${outcome === "WIN" ? "escaped" : "fell"} ${result.scoreA}-${result.scoreB} after a nail-biter finish.`,
+      tags: ["clutch"],
+    });
+  }
+
+  // Individual stories
+  for (const bout of result.bouts) {
+    if (!bout.a || !bout.b) continue;
+    const winner = bout.winnerSide === "A" ? bout.a : bout.b;
+    const loser = bout.winnerSide === "A" ? bout.b : bout.a;
+    const winSideIsMyTeam = bout.winnerSide === "A";
+    const scoreDiff = overallScore(winner) - overallScore(loser);
+    if (scoreDiff < -8) {
+      stories.push({
+        type: "individual_upset",
+        importance: 55 + Math.abs(scoreDiff),
+        headline: `Upset at ${bout.weightClass} lbs`,
+        blurb: `${winner.name} shocked ${loser.name} with a ${bout.method} at ${bout.weightClass}.`,
+        tags: [winner.name, loser.name, String(bout.weightClass), winSideIsMyTeam ? "my_team" : "rival"],
+      });
+    } else if (bout.method === "pin" || bout.method === "tech fall") {
+      stories.push({
+        type: "star_dominated",
+        importance: 40 + (bout.method === "pin" ? 8 : 5),
+        headline: `${winner.name} dominates at ${bout.weightClass}`,
+        blurb: `${winner.name} earned a ${bout.method} to give ${winSideIsMyTeam ? myTeam.name : rival.name} bonus points.`,
+        tags: [winner.name, String(bout.weightClass)],
+      });
+    }
+  }
+
+  if (stories.length === 0) {
+    stories.push({
+      type: "default",
+      importance: 10,
+      headline: `${myTeam.name} ${outcome === "WIN" ? "edges" : outcome === "LOSS" ? "falls to" : "splits with"} ${rival.name}`,
+      blurb: `Final score ${result.scoreA}-${result.scoreB}.`,
+      tags: [],
+    });
+  }
+
+  return stories.sort((a, b) => b.importance - a.importance).slice(0, 5);
+}
+
+function applyModifiersToWrestler(w: Wrestler, modifiers: CoachingModifier[]): Wrestler {
+  const clone = { ...w };
+  for (const mod of modifiers) {
+    if (mod.type === "push") {
+      clone.neutral = clampStat(clone.neutral + 2);
+      clone.conditioning = clampStat(clone.conditioning + 1);
+    } else if (mod.type === "solid") {
+      clone.bottom = clampStat(clone.bottom + 1);
+      clone.top = clampStat(clone.top + 1);
+    }
+  }
+  return clone;
+}
+
+function simulateBoutWithStrategy(a: Wrestler, b: Wrestler, dualStrategy: "balanced" | "aggressive" | "conservative", modifiers: CoachingModifier[]): { result: BoutResult; pointsA: number; pointsB: number } {
+  const aAdj = applyModifiersToWrestler(a, modifiers);
+  const bAdj = { ...b }; // opponent unchanged
+  const strategyMod = dualStrategy === "aggressive" ? 1.05 : dualStrategy === "conservative" ? 0.95 : 1;
+  const aFatigue = aAdj.fatigue || 20;
+  const bFatigue = bAdj.fatigue || 20;
+  const aHealth = aAdj.health || 100;
+  const bHealth = bAdj.health || 100;
+  const aMorale = aAdj.morale || 70;
+  const bMorale = bAdj.morale || 70;
+
+  const aInjuryPenalty =
+    aAdj.injury && aAdj.injury.days > 0
+      ? aAdj.injury.type === "major"
+        ? 0.6
+        : aAdj.injury.type === "moderate"
+        ? 0.8
+        : 0.9
+      : 1;
+  const bInjuryPenalty =
+    bAdj.injury && bAdj.injury.days > 0
+      ? bAdj.injury.type === "major"
+        ? 0.6
+        : bAdj.injury.type === "moderate"
+        ? 0.8
+        : 0.9
+      : 1;
+
+  const aStyle = aAdj.neutral * 0.3 + aAdj.top * 0.25 + aAdj.bottom * 0.2 + aAdj.technique * 0.25;
+  const bStyle = bAdj.neutral * 0.3 + bAdj.top * 0.25 + bAdj.bottom * 0.2 + bAdj.technique * 0.25;
+
+  const aBase =
+    (overallScore(aAdj) + aStyle * 0.05 + (aMorale - 70) * 0.1 + (aHealth - 90) * 0.05 - aFatigue * 0.1 + (aAdj.form || 0) * 1.2) *
+    aInjuryPenalty *
+    strategyMod;
+  const bBase =
+    (overallScore(bAdj) + bStyle * 0.05 + (bMorale - 70) * 0.1 + (bHealth - 90) * 0.05 - bFatigue * 0.1 + (bAdj.form || 0) * 1.2) *
+    bInjuryPenalty;
+
+  const aScore = aBase + Math.random() * 10;
+  const bScore = bBase + Math.random() * 10;
+  const winner = aScore >= bScore ? a : b;
+  const loser = winner === a ? b : a;
+  const diff = Math.abs(aScore - bScore);
+  let method: WinMethod = "decision";
+  let winnerSide: "A" | "B" = aScore >= bScore ? "A" : "B";
+
+  const solidActive = modifiers.some((m) => m.type === "solid");
+  const pinThreshold = solidActive ? 18 : 15;
+
+  if (diff > pinThreshold) method = "pin";
+  else if (diff > 10) method = "tech fall";
+  else if (diff > 6) method = "major";
+
+  const summary = `${winner.name} defeats ${loser.name} by ${method}.`;
+  const result: BoutResult = {
+    weightClass: winner.weightClass,
+    a,
+    b,
+    winnerSide,
+    method,
+    summary,
+  };
+  const pointsA = winnerSide === "A" ? teamPointsForMethod(method) : 0;
+  const pointsB = winnerSide === "B" ? teamPointsForMethod(method) : 0;
+
+  return { result, pointsA, pointsB };
+}
+
+
 function renderScoutReport(opponent: Team | null): void {
   if (!scoutReport) return;
   if (!opponent) {
@@ -1532,6 +2064,261 @@ function renderScoutReport(opponent: Team | null): void {
   scoutReport.textContent = `Scouting ${opponent.name}\n${lines}`;
 }
 
+
+
+
+function buildLiveBouts(opponent: Team): LiveBoutState[] {
+  const bouts: LiveBoutState[] = [];
+  for (const wc of WEIGHT_CLASSES) {
+    const myId = lineupSelections[wc];
+    const myW = myId ? roster.find((r) => r.id === myId) : undefined;
+    const oppW = opponent.wrestlers.find((r) => r.weightClass === wc);
+    bouts.push({ weightClass: wc, a: myW, b: oppW });
+  }
+  return bouts;
+}
+
+function startLiveDual(opponent: Team, trainingNote?: string, isPostseason = false, scheduledWeek?: number): void {
+  ensureLiveDualUI();
+  const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
+  liveDualState = {
+    active: true,
+    myTeam,
+    opponent,
+    bouts: buildLiveBouts(opponent),
+    currentIndex: 0,
+    scoreA: 0,
+    scoreB: 0,
+    strategy,
+    modifiers: [],
+    isPostseason,
+    scheduledWeek,
+    trainingNote,
+  };
+  setActiveView("live-dual");
+  updateLiveDualUI();
+  saveRoster();
+}
+
+function applyModifier(type: "push" | "solid"): void {
+  if (!liveDualState) return;
+  liveDualState.modifiers.push({ type, remaining: 2 });
+  if (liveButtonsEl) {
+    const msg = type === "push" ? "Pace push set for next bouts." : "Staying solid for next bouts.";
+    liveButtonsEl.setAttribute("data-msg", msg);
+  }
+  saveRoster();
+  updateLiveDualUI();
+}
+
+function quickFinishLiveDual(): void {
+  if (!liveDualState) return;
+  const state = liveDualState;
+  while (liveDualState && state.currentIndex < state.bouts.length) {
+    // expire modifiers each bout
+    state.modifiers = state.modifiers
+      .map((m) => ({ ...m, remaining: m.remaining - 1 }))
+      .filter((m) => m.remaining > 0);
+    const bout = state.bouts[state.currentIndex];
+    if (!bout) break;
+    if (!bout.a && !bout.b) {
+      // nothing happens
+    } else if (!bout.a) {
+      state.scoreB += 6;
+      bout.result = { weightClass: bout.weightClass, winnerSide: "B", method: "forfeit", summary: `${state.opponent.name} wins by forfeit` };
+    } else if (!bout.b) {
+      state.scoreA += 6;
+      bout.result = { weightClass: bout.weightClass, winnerSide: "A", method: "forfeit", summary: `${state.myTeam.name} wins by forfeit` };
+    } else {
+      const { result, pointsA, pointsB } = simulateBoutWithStrategy(bout.a, bout.b, state.strategy, state.modifiers);
+      bout.result = result;
+      state.scoreA += pointsA;
+      state.scoreB += pointsB;
+    }
+    state.currentIndex++;
+  }
+  updateLiveDualUI();
+  finalizeLiveDual();
+}
+
+function updateLiveDualUI(): void {
+  if (!liveDualState) return;
+  ensureLiveDualUI();
+  if (!liveTitleEl || !liveScoreEl || !liveBoutEl || !liveButtonsEl || !liveStartBtn || !liveStrategyEl) return;
+  const state = liveDualState;
+  liveTitleEl.textContent = `${state.myTeam.name} vs ${state.opponent.name}`;
+  liveScoreEl.textContent = `Team Score: ${state.myTeam.name} ${state.scoreA} - ${state.scoreB} ${state.opponent.name}`;
+  liveStrategyEl.textContent = `Strategy: ${state.strategy}`;
+
+  const bout = state.bouts[state.currentIndex];
+  if (!bout) {
+    liveBoutEl.textContent = "Dual complete.";
+    liveStartBtn.textContent = "Finish Dual";
+  } else {
+    const aName = bout.a ? `${bout.a.name} (OVR ${overallScore(bout.a).toFixed(1)})` : "Open";
+    const bName = bout.b ? `${bout.b.name} (OVR ${overallScore(bout.b).toFixed(1)})` : "Forfeit";
+    const resultLine = bout.result ? `${bout.result.summary}` : "Not wrestled yet.";
+    liveBoutEl.innerHTML = `
+      <div class="meta">Bout ${state.currentIndex + 1} of ${state.bouts.length} – ${bout.weightClass} lbs</div>
+      <div><strong>${aName}</strong> vs <strong>${bName}</strong></div>
+      <div class="meta">${resultLine}</div>
+    `;
+    liveStartBtn.textContent = bout.result ? "Next Bout" : "Start Bout";
+  }
+
+  liveButtonsEl.innerHTML = "";
+  if (state.bouts[state.currentIndex]) {
+    const stratLabel = document.createElement("div");
+    stratLabel.className = "meta";
+    stratLabel.textContent = "Adjust strategy:";
+    liveButtonsEl!.appendChild(stratLabel);
+    ["balanced", "aggressive", "conservative"].forEach((s) => {
+      const btn = document.createElement("button");
+      btn.textContent = s === "balanced" ? "Balanced" : s === "aggressive" ? "Aggressive" : "Conservative";
+      btn.disabled = state.strategy === s;
+      btn.addEventListener("click", () => {
+        state.strategy = s as any;
+        saveRoster();
+        updateLiveDualUI();
+      });
+      liveButtonsEl!.appendChild(btn);
+    });
+
+    const pepLabel = document.createElement("div");
+    pepLabel.className = "meta";
+    pepLabel.textContent = "Pep talk:";
+    liveButtonsEl!.appendChild(pepLabel);
+    const pushBtn = document.createElement("button");
+    pushBtn.textContent = "Push the pace (+neutral, small fatigue)";
+    pushBtn.onclick = () => {
+      applyModifier("push");
+      for (const w of getStarters()) {
+        w.fatigue = Math.min(100, (w.fatigue || 0) + 2);
+      }
+      refreshRosterUI();
+    };
+    liveButtonsEl!.appendChild(pushBtn);
+    const solidBtn = document.createElement("button");
+    solidBtn.textContent = "Stay solid (reduce pin risk)";
+    solidBtn.onclick = () => applyModifier("solid");
+    liveButtonsEl!.appendChild(solidBtn);
+
+    const quickBtn = document.createElement("button");
+    quickBtn.textContent = "Quick finish dual";
+    quickBtn.onclick = () => quickFinishLiveDual();
+    liveButtonsEl!.appendChild(quickBtn);
+  }
+
+  liveStartBtn.disabled = false;
+}
+
+function advanceLiveBout(): void {
+  if (!liveDualState) return;
+  const state = liveDualState;
+  const bout = state.bouts[state.currentIndex];
+  if (!bout) {
+    finalizeLiveDual();
+    return;
+  }
+
+  // expire modifiers
+  state.modifiers = state.modifiers
+    .map((m) => ({ ...m, remaining: m.remaining - 1 }))
+    .filter((m) => m.remaining > 0);
+
+  if (!bout.a && !bout.b) {
+    state.currentIndex++;
+    updateLiveDualUI();
+    saveRoster();
+    return;
+  }
+  if (!bout.a) {
+    state.scoreB += 6;
+    bout.result = { weightClass: bout.weightClass, winnerSide: "B", method: "forfeit", summary: `${state.opponent.name} wins by forfeit` };
+  } else if (!bout.b) {
+    state.scoreA += 6;
+    bout.result = { weightClass: bout.weightClass, winnerSide: "A", method: "forfeit", summary: `${state.myTeam.name} wins by forfeit` };
+  } else {
+    const { result, pointsA, pointsB } = simulateBoutWithStrategy(bout.a, bout.b, state.strategy, state.modifiers);
+    bout.result = result;
+    state.scoreA += pointsA;
+    state.scoreB += pointsB;
+  }
+
+  state.currentIndex++;
+  updateLiveDualUI();
+  saveRoster();
+  if (state.currentIndex >= state.bouts.length) {
+    finalizeLiveDual();
+  }
+}
+
+function finalizeLiveDual(): void {
+  if (!liveDualState) return;
+  const state = liveDualState;
+  const scoreA = state.scoreA;
+  const scoreB = state.scoreB;
+  const outcome: "WIN" | "LOSS" | "TIE" = scoreA === scoreB ? "TIE" : scoreA > scoreB ? "WIN" : "LOSS";
+  const logLines: string[] = [];
+  for (const b of state.bouts) {
+    if (b.result) logLines.push(`${b.weightClass}: ${b.result.summary}`);
+  }
+  logLines.push(`Final: ${state.myTeam.name} ${scoreA} - ${scoreB} ${state.opponent.name}`);
+  const dualResult: DualResult = { log: logLines.join("\n"), scoreA, scoreB, bouts: state.bouts.map((b) => b.result!).filter(Boolean) };
+
+  if (state.scheduledWeek) {
+    const ev = schedule.find((e) => e.week === state.scheduledWeek);
+    if (ev) ev.result = dualResult;
+  }
+
+  if (outcome === "WIN") seasonWins++;
+  else if (outcome === "LOSS") seasonLosses++;
+  seasonLog.textContent = dualResult.log;
+  seasonWeek++;
+  dayOfWeek = dayOfWeek === tournamentDay ? 1 : dayOfWeek + 1;
+
+  for (const w of roster) {
+    w.fatigue = Math.min(100, (w.fatigue || 20) + 12);
+    w.health = Math.max(40, (w.health || 95) - 3);
+    if (w.injury && w.injury.days > 0) w.injury.days = Math.max(0, w.injury.days - 1);
+    w.morale = clampStat((w.morale || 70) + (outcome === "WIN" ? 3 : outcome === "TIE" ? 0 : -2));
+  }
+
+  const summary = `Week ${seasonWeek - 1}: ${state.myTeam.name} ${scoreA}-${scoreB} ${state.opponent.name}${state.trainingNote ? ` | ${state.trainingNote}` : ""}`;
+  updateLeague(state.myTeam.name, state.opponent.name, scoreA, scoreB);
+  renderStandings();
+  const stories = generateDualStories(state.myTeam, state.opponent, dualResult, outcome, state.isPostseason);
+  const payload: GazettePayload = {
+    stories,
+    scoreA,
+    scoreB,
+    myTeam: state.myTeam,
+    opponent: state.opponent,
+    outcome,
+    label: computeOutcomeLabel({
+      stories,
+      scoreA,
+      scoreB,
+      myTeam: state.myTeam,
+      opponent: state.opponent,
+      outcome,
+      label: "",
+    }),
+  };
+  addWeeklySummary(summary + (stories[0]?.headline ? ` | ${stories[0].headline}` : ""));
+  renderGazette(payload);
+
+  liveDualState = null;
+  if (seasonWeek > schedule.length && !postseasonPlayed && state.isPostseason) {
+    runPostseason();
+    postseasonPlayed = true;
+    advanceSeason();
+  }
+  renderSchedule();
+  updateSeasonUI();
+  saveRoster();
+  setActiveView("home");
+}
 
 function simulateIntraSquadDual(): string {
 
@@ -1568,7 +2355,7 @@ function updateSeasonUI() {
   if (homeTeamNameEl) homeTeamNameEl.textContent = teamName || "Your School";
 }
 
-function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: string } | null {
+function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: string; payload: GazettePayload } | null {
   if (roster.length === 0) {
     seasonLog.textContent = "Add wrestlers first.";
     return null;
@@ -1637,7 +2424,26 @@ function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: 
   const summary = `Week ${seasonWeek - 1}: ${myTeam.name} ${scoreA}-${scoreB} ${rival.name}${trainingNote ? ` | ${trainingNote}` : ""}`;
   updateLeague(myTeam.name, rival.name, scoreA, scoreB);
   renderStandings();
-  return { outcome, summary };
+  const stories = generateDualStories(myTeam, rival, { log, scoreA, scoreB, bouts }, outcome, false);
+  const payload: GazettePayload = {
+    stories,
+    scoreA,
+    scoreB,
+    myTeam,
+    opponent: rival,
+    outcome,
+    label: computeOutcomeLabel({
+      stories,
+      scoreA,
+      scoreB,
+      myTeam,
+      opponent: rival,
+      outcome,
+      label: "",
+    }),
+  };
+  renderGazette(payload);
+  return { outcome, summary, payload };
 }
 
 function runPostseason(): void {
@@ -2002,6 +2808,17 @@ vsOpponentBtn.addEventListener("click", () => {
   vsOpponentLog.classList.add("log"); // ensure styling
 });
 
+if (quickSimBtn) {
+  quickSimBtn.addEventListener("click", () => {
+    if (!ensureProgramSelected()) return;
+    const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
+    const rival = generateOpponentTeam(myTeam);
+    const result = simulateDual(myTeam, rival);
+    renderDualBoard(vsOpponentLog, myTeam, rival, result);
+    vsOpponentLog.classList.add("log");
+  });
+}
+
 recruitGenerateBtn?.addEventListener("click", () => {
   generateProspects(currentProgram || undefined);
 });
@@ -2079,15 +2896,23 @@ seasonNextBtn.addEventListener("click", () => {
   const isDualDay = dayOfWeek === dualDay;
   const isTournamentDay = dayOfWeek === tournamentDay;
   if (isDualDay || isTournamentDay) {
-    const result = simulateSeasonDual(trainingSummary);
-    if (result) addWeeklySummary(result.summary);
-    if (seasonWeek > schedule.length && !postseasonPlayed && isTournamentDay) {
-      runPostseason();
-      postseasonPlayed = true;
-      advanceSeason();
+    if (liveDualState && liveDualState.active) {
+      // If user clicks Next Day while a live dual is open, just quick-finish it to keep the loop unblocked.
+      quickFinishLiveDual();
+      return;
     }
-    dayOfWeek = isTournamentDay ? 1 : dayOfWeek + 1;
-    seasonLog.textContent = trainingSummary + "\n\n" + seasonLog.textContent;
+    const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
+    let opponent: Team;
+    if (scheduled) {
+      opponent = scheduled.opponent;
+    } else if (nextOpponent) {
+      opponent = nextOpponent;
+    } else {
+      opponent = generateOpponentTeam(myTeam);
+    }
+    startLiveDual(opponent, trainingSummary, isTournamentDay, scheduled?.week);
+    seasonLog.textContent = trainingSummary + "\n\n" + (seasonLog.textContent || "");
+    return;
   } else {
     dayOfWeek += 1;
     seasonLog.textContent = trainingSummary + "\n\n" + (seasonLog.textContent || "");
@@ -2102,7 +2927,17 @@ loadRoster(true);
 updateSeasonUI();
 renderStandings();
 renderWeeklySummaries();
-setActiveView("home");
+const activeDual = liveDualState as LiveDualState | null;
+if (activeDual && activeDual.active) {
+  ensureLiveDualUI();
+  updateLiveDualUI();
+  setActiveView("live-dual");
+} else {
+  setActiveView("home");
+}
+
+// expose quick sim for potential debug/legacy flows
+(window as any).quickSimSeasonDual = simulateSeasonDual;
 
 navButtons.forEach((btn) => {
   btn.addEventListener("click", () => {

@@ -58,6 +58,10 @@ header h1 {
   padding: 12px 14px;
 }
 
+#view-results .card {
+  width: 100%;
+}
+
 .card h2 {
   margin: 0 0 10px;
   font-size: 16px;
@@ -212,8 +216,9 @@ button:hover {
 .results-hero {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
-  align-items: center;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px 10px;
 }
 
 .results-meta {
@@ -227,7 +232,7 @@ button:hover {
 }
 
 .results-meta .value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   display: block;
 }
@@ -619,4 +624,122 @@ main {
 
 .dual-day button {
   width: 120px;
+}
+
+.tournament-grid {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.bracket-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.weight-bracket {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fafc;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weight-bracket h4 {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+}
+
+.round-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.round-col h5 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.bracket-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0;
+  background: #fff;
+  overflow: hidden;
+}
+
+.bracket-card .match-body {
+  padding: 8px 10px;
+}
+
+.team-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 4px 0;
+  align-items: center;
+}
+
+.team-row .name {
+  font-weight: 600;
+}
+
+.team-row .score {
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+}
+
+.team-row.winner .name,
+.team-row.winner .score {
+  color: #16a34a;
+}
+
+.match-meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+.champion-callout {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #ecfdf3;
+  border: 1px solid #bbf7d0;
+  font-weight: 700;
+}
+
+.scores-col {
+  background: #0f172a;
+  color: #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.scores-col h3 {
+  color: #e5e7eb;
+}
+
+.scores-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.scores-list li {
+  padding: 4px 0;
+}
+
+.error-text {
+  color: #b91c1c;
+  margin: 8px 0 0;
+  font-size: 14px;
 }

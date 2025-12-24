@@ -252,34 +252,27 @@
           </div>
         </section>
 
-        <section class="card results-columns">
-          <div>
-            <h3>Results Ledger</h3>
-            <p class="meta">Completed duals and tournament rounds are archived here for a quick recap.</p>
-            <ul id="results-list" class="list results-stack"></ul>
-          </div>
-          <div class="results-side">
+        <section class="card">
+          <div class="coach-menu-header">
             <div>
-              <h3>Weekly Summary</h3>
-              <ul id="weekly-summary" class="list"></ul>
+              <p class="eyebrow">Bracket Room</p>
+              <h2>Individual Tournament (per weight)</h2>
+              <p class="meta">Eight-wrestler brackets for each weight class with quarters, semis, and finals.</p>
             </div>
-            <div>
-              <h3>Standings</h3>
-              <ul id="standings-list" class="list"></ul>
+            <div class="field-row">
+              <button id="tournament-run-btn" type="button" class="primary">Simulate Bracket</button>
+              <button id="tournament-resim-btn" type="button" class="ghost">Reseed + Resim</button>
             </div>
           </div>
-        </section>
-
-        <section class="card">
-          <h3>Postseason & Tournament Highlights</h3>
-          <div id="postseason-log" class="log"></div>
-        </section>
-      </section>
-
-      <section id="view-training" class="view">
-        <section class="card">
-          <h2>Training & Season Log</h2>
-          <div id="season-log" class="log"></div>
+          <div id="tournament-error" class="error-text"></div>
+          <div class="tournament-grid">
+            <div class="bracket-matrix" id="tournament-brackets"></div>
+            <div class="bracket-col scores-col">
+              <h3>Placings</h3>
+              <ol id="tournament-scores" class="list scores-list"></ol>
+              <div id="tournament-champion" class="champion-callout"></div>
+            </div>
+          </div>
         </section>
       </section>
 

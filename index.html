@@ -44,6 +44,16 @@
               <button id="home-next-day-btn" class="primary">Next Day</button>
             </div>
           </div>
+          <div class="latest-summary">
+            <div>
+              <p class="eyebrow">Latest Result</p>
+              <p id="latest-result" class="meta">No results yet.</p>
+            </div>
+            <div>
+              <p class="eyebrow">Next Opponent</p>
+              <p id="next-opponent" class="meta">TBD</p>
+            </div>
+          </div>
           <div class="tile-grid">
             <button class="tile-card" data-target="dashboard">
               <div class="tile-title">District Ranking</div>
@@ -127,6 +137,8 @@
             <option value="conditioning">Conditioning</option>
             <option value="technique">Technique</option>
           </select>
+          <p id="training-effects" class="meta">Focus effects will appear here.</p>
+          <p class="coach-tip meta">Tip: Next Day runs a live dual on Wednesdays and the tournament on Saturdays.</p>
         </div>
         <div class="coach-bar-right">
           <button id="season-next-btn" type="button" class="primary">Next Day</button>
@@ -226,33 +238,13 @@
             <button id="rest-fatigue-btn" type="button">Rest High Fatigue</button>
             <button id="heal-minors-btn" type="button">Treat Minor Injuries</button>
           </div>
+          <div class="meta" id="rest-preview"></div>
+          <div class="meta" id="heal-preview"></div>
         </section>
       </section>
 
       <section id="view-results" class="view">
-        <section class="card results-hero">
-          <div>
-            <p class="eyebrow">Competition Hub</p>
-            <h2>Dual & Tournament Results</h2>
-            <p class="meta">A dedicated page to review every dual meet, tournament bracket, and how your program stacks up.</p>
-          </div>
-          <div class="results-meta">
-            <div>
-              <span class="label">Season Day</span>
-              <span class="value" id="results-day">--</span>
-            </div>
-            <div>
-              <span class="label">Season Week</span>
-              <span class="value" id="results-week">--</span>
-            </div>
-            <div>
-              <span class="label">Record</span>
-              <span class="value" id="results-record">--</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="card">
+        <section class="bracket-wrapper">
           <div class="coach-menu-header">
             <div>
               <p class="eyebrow">Bracket Room</p>

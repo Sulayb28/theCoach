@@ -38,6 +38,7 @@ export function buildLineupCard<T extends WrestlerCard>(options: RosterCardOptio
   const { weightClass, wrestlers, selectedId, onSelect, overallScore } = options;
   const card = document.createElement("div");
   card.className = "lineup-card";
+  card.dataset.weightClass = String(weightClass);
   const selected = wrestlers.find((c) => c.id === selectedId) || wrestlers[0];
   const name = selected ? selected.name : "Open";
   const ovr = selected ? overallScore(selected).toFixed(1) : "--";

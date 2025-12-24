@@ -239,6 +239,8 @@ function setActiveView(viewKey: string): void {
   for (const v of views) {
     v.classList.toggle("active", v.id === `view-${viewKey}`);
   }
+  if (viewKey === "home") refreshLatestSummary();
+  if (viewKey === "results") renderTournamentIfAvailable();
 }
 
 function ensureGazetteOverlay(): void {
@@ -574,6 +576,17 @@ const OFFSEASON_DEV_BONUS = 3;
 let gazetteReactionChosen = false;
 let liveDualState: LiveDualState | null = null;
 let lastTournamentBracket: TournamentBracket | null = null;
+let latestResultSummary = "";
+let offseasonRecap = "";
+const TRAINING_EFFECTS: Record<TrainingFocus, string> = {
+  balanced: "+neutral/top/bottom/technique (small) | -fatigue",
+  neutral: "+neutral/technique | -fatigue",
+  top: "+top/technique | -fatigue",
+  bottom: "+bottom/technique | -fatigue",
+  strength: "+strength | -neutral/top/bottom (minor) | -fatigue",
+  conditioning: "+conditioning | -fatigue",
+  technique: "+technique | -fatigue",
+};
 
 const STORAGE_KEY = "wcg:save:v2";
 const LEGACY_STORAGE_KEY = "wcg:roster:v1";
@@ -759,10 +772,103 @@ function clampStat(v: number): number {
   return Math.min(99, Math.max(1, v));
 }
 
+function refreshLatestSummary(): void {
+  if (latestResultEl) {
+    latestResultEl.textContent = latestResultSummary || "No results yet.";
+  }
+  if (nextOpponentEl) {
+    const upcoming = schedule.find((e) => !e.result);
+    nextOpponentEl.textContent = upcoming
+      ? `${upcoming.opponent.name} (Week ${upcoming.week}${upcoming.isTournament ? " - Tournament" : ""})`
+      : "Season complete";
+  }
+}
+
+function renderOffseasonRecap(): void {
+  if (offseasonRecapEl) {
+    offseasonRecapEl.textContent = offseasonRecap || "Finish the season to see a recap.";
+  }
+}
+
+function refreshTrainingEffects(): void {
+  if (!trainingEffectsEl) return;
+  const focus = (trainingSelect?.value as TrainingFocus) || "balanced";
+  const budgetFactor = budget >= 70 ? "Low fatigue loss" : budget <= 30 ? "Higher fatigue loss" : "Moderate fatigue";
+  const nilFactor = nilBudget >= 70 ? "Recruiting boosted" : nilBudget <= 30 ? "Recruiting slow" : "Recruiting steady";
+  trainingEffectsEl.textContent = `${TRAINING_EFFECTS[focus]} | ${budgetFactor} | ${nilFactor}`;
+}
+
+function isMajorInjury(w: Wrestler | undefined): boolean {
+  return !!(w && w.injury && w.injury.type === "major" && w.injury.days > 0);
+}
+
 function bestCandidateForWeight(weightClass: number): Wrestler | undefined {
   return roster
     .filter((w) => w.weightClass === weightClass)
     .sort((a, b) => overallScore(b) - overallScore(a))[0];
+}
+
+function autoFillLineupIfEmpty(): void {
+  let changed = false;
+  for (const wc of WEIGHT_CLASSES) {
+    if (!lineupSelections[wc]) {
+      const best = bestCandidateForWeight(wc);
+      lineupSelections[wc] = best ? best.id : null;
+      changed = true;
+    }
+  }
+  if (changed) {
+    refreshRosterUI();
+    logToElement(resultLog, "Lineup auto-filled with best available wrestlers.");
+  }
+}
+
+function ensureLineupReady(): boolean {
+  const missing: number[] = [];
+  const used = new Set<string>();
+  for (const wc of WEIGHT_CLASSES) {
+    let chosenId = lineupSelections[wc];
+    let chosen = chosenId ? roster.find((w) => w.id === chosenId) : undefined;
+    if (chosen && isMajorInjury(chosen)) chosen = undefined;
+
+    if (chosen && !used.has(chosen.id)) {
+      used.add(chosen.id);
+      continue;
+    }
+
+    const same = roster.find((w) => w.weightClass === wc && !isMajorInjury(w) && !used.has(w.id));
+    if (same) {
+      lineupSelections[wc] = same.id;
+      used.add(same.id);
+      continue;
+    }
+
+    if (allowBump) {
+      const idx = WEIGHT_CLASSES.indexOf(wc);
+      const lowerWc = idx > 0 ? WEIGHT_CLASSES[idx - 1] : null;
+      if (lowerWc) {
+        const bump = roster.find((w) => w.weightClass === lowerWc && !isMajorInjury(w) && !used.has(w.id));
+        if (bump) {
+          lineupSelections[wc] = bump.id;
+          used.add(bump.id);
+          continue;
+        }
+      }
+    }
+
+    missing.push(wc);
+  }
+
+  if (missing.length > 0) {
+    refreshRosterUI(missing);
+    const msg = `Lineup incomplete: no healthy starter or bump at ${missing.join(", ")} lbs.`;
+    if (seasonLog) seasonLog.textContent = msg;
+    logToElement(resultLog, msg);
+    return false;
+  }
+
+  refreshRosterUI();
+  return true;
 }
 
 function prestigeBase(program: Program): number {
@@ -999,6 +1105,7 @@ function simulateDualVsOpponent(): { result: DualResult; myTeam: Team; rival: Te
     resultLog.textContent = "Add wrestlers first.";
     return null;
   }
+  if (!ensureLineupReady()) return null;
   const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
   const rival = generateOpponentTeam(myTeam, pickRandom(SCHOOL_NAMES));
   const result = simulateDual(myTeam, rival);
@@ -1081,6 +1188,7 @@ function applyProgram(program: Program, opts?: { keepTeamName?: boolean; skipRos
     generateRosterForProgram(program);
     generateProspects(program);
     generateSeasonSchedule();
+    autoFillLineupIfEmpty();
     committedThisSeason = 0;
     weeklySummaries.length = 0;
   }
@@ -1197,12 +1305,18 @@ const tileRegional = document.getElementById("tile-regional-rank") as HTMLDivEle
 const tileState = document.getElementById("tile-state-rank") as HTMLDivElement | null;
 const navButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".nav-btn"));
 const views = Array.from(document.querySelectorAll<HTMLElement>(".view"));
+const latestResultEl = document.getElementById("latest-result") as HTMLParagraphElement | null;
+const nextOpponentEl = document.getElementById("next-opponent") as HTMLParagraphElement | null;
+const trainingEffectsEl = document.getElementById("training-effects") as HTMLParagraphElement | null;
+const restPreviewEl = document.getElementById("rest-preview") as HTMLDivElement | null;
+const healPreviewEl = document.getElementById("heal-preview") as HTMLDivElement | null;
 const tournamentBracketsEl = document.getElementById("tournament-brackets") as HTMLDivElement | null;
 const tournamentRunBtn = document.getElementById("tournament-run-btn") as HTMLButtonElement | null;
 const tournamentReseedBtn = document.getElementById("tournament-resim-btn") as HTMLButtonElement | null;
 const tournamentScoresEl = document.getElementById("tournament-scores") as HTMLOListElement | null;
 const tournamentChampionEl = document.getElementById("tournament-champion") as HTMLDivElement | null;
 const tournamentErrorEl = document.getElementById("tournament-error") as HTMLDivElement | null;
+const offseasonRecapEl = document.getElementById("offseason-recap") as HTMLParagraphElement | null;
 const programSelectSection = document.getElementById("program-select") as HTMLElement;
 const programGrid = document.getElementById("program-grid") as HTMLDivElement;
 const gameUI = document.getElementById("game-ui") as HTMLElement;
@@ -1235,7 +1349,7 @@ let liveStrategyEl: HTMLElement | null = null;
 
 // ---- Rendering ----
 
-function refreshRosterUI() {
+function refreshRosterUI(missingWeights: number[] = []) {
   ensureLineupSelections(lineupSelections, roster, WEIGHT_CLASSES);
   renderRosterList(rosterList, roster, overallScore);
 
@@ -1250,10 +1364,13 @@ function refreshRosterUI() {
         selectedId,
         overallScore,
         onSelect: (value) => {
-          lineupSelections[wc] = value;
+        lineupSelections[wc] = value;
           refreshRosterUI();
         },
       });
+      if (missingWeights.includes(wc)) {
+        card.classList.add("lineup-error");
+      }
       lineupGrid.appendChild(card);
     }
   }
@@ -1460,6 +1577,7 @@ function loadRoster(initial = false) {
       generateRosterForProgram(currentProgram);
     } else {
       ensureLineupSelections(lineupSelections, roster, WEIGHT_CLASSES);
+      autoFillLineupIfEmpty();
       refreshRosterUI();
     }
     if (schedule.length === 0) {
@@ -1532,12 +1650,12 @@ function buildTeamFromRoster(all: Wrestler[], name: string): Team {
       if (lower[0]) chosen = lower[0];
     }
     if (chosen) {
-      const isMajorInjured = chosen.injury && chosen.injury.type === "major" && chosen.injury.days > 0;
-      if (!isMajorInjured) {
+      if (!isMajorInjury(chosen)) {
         wrestlers.push(chosen);
       }
     }
   }
+  refreshLatestSummary();
   return { name, wrestlers };
 }
 
@@ -1553,7 +1671,7 @@ function generateOpponentTeam(base: Team, nameOverride?: string): Team {
 
       id: createId(),
 
-      name: `Rival ${w.weightClass}`, // simple placeholder names
+      name: `${pickRandom(FIRST_NAMES)} ${pickRandom(LAST_NAMES)}`,
 
       neutral: clampStat(w.neutral + randomDelta(variance)),
 
@@ -1596,6 +1714,7 @@ function generateSeasonSchedule(count = 8): void {
   }
   renderSchedule();
   nextOpponent = schedule.find((e) => !e.result)?.opponent || null;
+  refreshLatestSummary();
 }
 
 function renderSchedule(): void {
@@ -1618,6 +1737,7 @@ function renderSchedule(): void {
       resultsList.appendChild(li);
     }
   }
+  refreshLatestSummary();
 }
 
 
@@ -1913,14 +2033,38 @@ function updateLiveDualUI(): void {
     liveBoutEl.textContent = "Dual complete.";
     liveStartBtn.textContent = "Finish Dual";
   } else {
-    const aName = bout.a ? `${bout.a.name} (OVR ${overallScore(bout.a).toFixed(1)})` : "Open";
-    const bName = bout.b ? `${bout.b.name} (OVR ${overallScore(bout.b).toFixed(1)})` : "Forfeit";
-    const resultLine = bout.result ? `${bout.result.summary}` : "Not wrestled yet.";
-    liveBoutEl.innerHTML = `
-      <div class="meta">Bout ${state.currentIndex + 1} of ${state.bouts.length} – ${bout.weightClass} lbs</div>
-      <div><strong>${aName}</strong> vs <strong>${bName}</strong></div>
-      <div class="meta">${resultLine}</div>
-    `;
+    const rows = state.bouts.map((b, idx) => {
+      const aName = b.a ? `${b.a.name}` : "Open";
+      const bName = b.b ? `${b.b.name}` : "Open";
+      const aOvr = b.a ? overallScore(b.a).toFixed(1) : "--";
+      const bOvr = b.b ? overallScore(b.b).toFixed(1) : "--";
+      const status = b.result
+        ? `${b.result.summary}`
+        : idx === state.currentIndex
+          ? "In progress"
+          : "Not started";
+      const homeClass = b.result ? (b.result.winnerSide === "A" ? "win" : b.result.winnerSide === "B" ? "loss" : "") : "";
+      const awayClass = b.result ? (b.result.winnerSide === "B" ? "win" : b.result.winnerSide === "A" ? "loss" : "") : "";
+      const currentClass = idx === state.currentIndex ? "current" : "";
+      return `
+        <div class="live-entry ${currentClass}">
+          <div class="live-col home ${homeClass}">
+            <div>${b.weightClass} lbs</div>
+            <div><strong>${aName}</strong></div>
+            <div class="meta">OVR ${aOvr}</div>
+          </div>
+          <div class="live-col result">
+            <div class="meta">${status}</div>
+          </div>
+          <div class="live-col away ${awayClass}">
+            <div>${b.weightClass} lbs</div>
+            <div><strong>${bName}</strong></div>
+            <div class="meta">OVR ${bOvr}</div>
+          </div>
+        </div>
+      `;
+    });
+    liveBoutEl.innerHTML = `<div class="live-board">${rows.join("")}</div>`;
     liveStartBtn.textContent = bout.result ? "Next Bout" : "Start Bout";
   }
 
@@ -2032,6 +2176,7 @@ function finalizeLiveDual(): void {
   if (outcome === "WIN") seasonWins++;
   else if (outcome === "LOSS") seasonLosses++;
   if (seasonLog) seasonLog.textContent = dualResult.log;
+  latestResultSummary = `Week ${seasonWeek}: ${state.myTeam.name} ${scoreA}-${scoreB} ${state.opponent.name}`;
   seasonWeek++;
   dayOfWeek = dayOfWeek === tournamentDay ? 1 : dayOfWeek + 1;
 
@@ -2065,6 +2210,7 @@ function finalizeLiveDual(): void {
   };
   addWeeklySummary(summary + (stories[0]?.headline ? ` | ${stories[0].headline}` : ""));
   renderGazette(payload);
+  refreshLatestSummary();
 
   liveDualState = null;
   if (seasonWeek > schedule.length && !postseasonPlayed && state.isPostseason) {
@@ -2121,6 +2267,7 @@ function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: 
     if (seasonLog) seasonLog.textContent = "Add wrestlers first.";
     return null;
   }
+  if (!ensureLineupReady()) return null;
 
   const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
   const scheduled = schedule.find((e) => e.week === seasonWeek);
@@ -2204,6 +2351,8 @@ function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: 
     }),
   };
   renderGazette(payload);
+  latestResultSummary = summary;
+  refreshLatestSummary();
   return { outcome, summary, payload };
 }
 
@@ -2330,6 +2479,7 @@ function renderTournamentBracket(bracket: TournamentBracket): void {
     li.textContent = `${entry.weightClass} lbs: ${champ}`;
     tournamentScoresEl.appendChild(li);
   });
+  refreshLatestSummary();
 }
 
 function renderTournamentIfAvailable(): void {
@@ -2382,6 +2532,8 @@ function runPostseason(): void {
   postseasonLog = `Semis: ${team1.name} ${semi1.scoreA}-${semi1.scoreB} ${team2.name} | ${team3.name} ${semi2.scoreA}-${semi2.scoreB} ${team4.name}\nFinal: ${finalistA.name} ${final.scoreA}-${final.scoreB} ${finalistB.name}\nChampion: ${champion.name}`;
   applyPrestigeAdjustments(league.find((t) => t.name === champion.name) || null);
   renderWeeklySummaries();
+  latestResultSummary = postseasonLog;
+  refreshLatestSummary();
 }
 
 function advanceSeason(): void {
@@ -2423,6 +2575,8 @@ function advanceSeason(): void {
 
   applyOffseasonDevelopment();
 
+  offseasonRecap = `Season recap: ${seasonWins}-${seasonLosses}. Postseason: ${postseasonLog || "None"}.`;
+
   // Reset season state
   initLeague();
   dayOfWeek = 1;
@@ -2439,6 +2593,7 @@ function advanceSeason(): void {
   refreshRosterUI();
   renderStandings();
   renderWeeklySummaries();
+  renderOffseasonRecap();
 }
 
 function applyTraining(focus: TrainingFocus): string {
@@ -2703,6 +2858,7 @@ vsOpponentBtn.addEventListener("click", () => {
 if (quickSimBtn) {
   quickSimBtn.addEventListener("click", () => {
     if (!ensureProgramSelected()) return;
+    if (!ensureLineupReady()) return;
     const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
     const rival = generateOpponentTeam(myTeam, pickRandom(SCHOOL_NAMES));
     const result = simulateDual(myTeam, rival);
@@ -2742,6 +2898,9 @@ scoutBtn?.addEventListener("click", () => {
 strategySelect?.addEventListener("change", () => {
   strategy = (strategySelect.value as any) || "balanced";
 });
+trainingSelect?.addEventListener("change", () => refreshTrainingEffects());
+budgetSlider?.addEventListener("input", () => refreshTrainingEffects());
+nilSlider?.addEventListener("input", () => refreshTrainingEffects());
 
 const handleTournamentSim = () => {
   if (!ensureProgramSelected()) {
@@ -2752,6 +2911,8 @@ const handleTournamentSim = () => {
   if (bracket) {
     lastTournamentBracket = bracket;
     renderTournamentBracket(bracket);
+    latestResultSummary = `Tournament simulated (${bracket.weights.length} brackets)`;
+    refreshLatestSummary();
   }
 };
 
@@ -2781,6 +2942,10 @@ restFatigueBtn?.addEventListener("click", () => {
     w.health = Math.min(100, (w.health || 90) + 3);
   }
   refreshRosterUI();
+  if (restPreviewEl) {
+    const names = tired.map((w) => w.name).join(", ");
+    restPreviewEl.textContent = names ? `Rested: ${names} (-15 fatigue, +3 health)` : "No wrestlers to rest.";
+  }
   renderGoals();
 });
 
@@ -2791,6 +2956,10 @@ healMinorsBtn?.addEventListener("click", () => {
     }
   }
   refreshRosterUI();
+  if (healPreviewEl) {
+    const healed = roster.filter((w) => w.injury && w.injury.type === "minor");
+    healPreviewEl.textContent = healed.length ? `Minor injuries treated: ${healed.length} wrestlers (-2 days)` : "No minor injuries to treat.";
+  }
 });
 
 seasonNextBtn.addEventListener("click", () => {
@@ -2828,6 +2997,9 @@ seasonNextBtn.addEventListener("click", () => {
       setActiveView("results");
       return;
     } else {
+      if (!ensureLineupReady()) {
+        return;
+      }
       const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
       let opponent: Team;
       if (scheduled) {
@@ -2855,6 +3027,9 @@ loadRoster(true);
 updateSeasonUI();
 renderStandings();
 renderWeeklySummaries();
+refreshLatestSummary();
+renderOffseasonRecap();
+refreshTrainingEffects();
 const activeDual = liveDualState as LiveDualState | null;
 if (activeDual && activeDual.active) {
   ensureLiveDualUI();

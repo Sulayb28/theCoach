@@ -51,6 +51,9 @@ interface Program {
   blurb: string;
   wrestlingPopularity: number; // 1-10 scale: how much the community cares
   athletics: number; // 1-10 overall athletic budget/resources
+  districtId: number;
+  regionId: number;
+  stateId: number;
 }
 
 interface Prospect {
@@ -134,6 +137,8 @@ interface LiveDualState {
   trainingNote?: string;
 }
 
+type StandingsLevel = "district" | "region" | "state";
+
 type TrainingFocus =
   | "balanced"
   | "neutral"
@@ -196,6 +201,9 @@ interface LeagueTeam {
   rating: number;
   prestige?: number;
   lastResult?: string;
+  districtId?: number;
+  regionId?: number;
+  stateId?: number;
 }
 
 
@@ -517,6 +525,99 @@ function renderGazette(payload: GazettePayload): void {
 
   gazetteOverlay.classList.add("active");
 }
+function ordinal(n: number): string {
+  const suffixes = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+}
+
+function getBaseProgram(): Program | null {
+  return currentProgram || PROGRAMS[0] || null;
+}
+
+function sortStandings(teams: LeagueTeam[]): LeagueTeam[] {
+  return [...teams].sort((a, b) => {
+    const winPctA = a.wins + a.losses === 0 ? 0 : a.wins / (a.wins + a.losses);
+    const winPctB = b.wins + b.losses === 0 ? 0 : b.wins / (b.wins + b.losses);
+    if (winPctA !== winPctB) return winPctB - winPctA;
+    const diffA = a.pf - a.pa;
+    const diffB = b.pf - b.pa;
+    if (diffA !== diffB) return diffB - diffA;
+    return b.rating - a.rating;
+  });
+}
+
+function getStandingsForLevel(level: StandingsLevel): LeagueTeam[] {
+  syncLeagueAffiliations();
+  const baseProgram = getBaseProgram();
+  if (!baseProgram) return sortStandings(league);
+  const filtered = league.filter((team) => {
+    if (level === "district") return team.districtId === baseProgram.districtId;
+    if (level === "region") return team.regionId === baseProgram.regionId;
+    return team.stateId === baseProgram.stateId;
+  });
+  return sortStandings(filtered.length > 0 ? filtered : league);
+}
+
+function getRankForLevel(level: StandingsLevel): number | null {
+  const sorted = getStandingsForLevel(level);
+  const targetName = currentProgram?.name || teamName;
+  const myRank = sorted.findIndex((t) => t.name === targetName);
+  return myRank >= 0 ? myRank + 1 : null;
+}
+
+function updateStandingsScope(level: StandingsLevel): void {
+  if (!standingsScopeEl) return;
+  const baseProgram = getBaseProgram();
+  const scopeValue =
+    level === "district"
+      ? baseProgram?.districtId
+      : level === "region"
+      ? baseProgram?.regionId
+      : baseProgram?.stateId;
+  const label = level === "district" ? "District" : level === "region" ? "Region" : "State";
+  const readable = typeof scopeValue === "number" ? `${label} ${scopeValue + 1}` : label;
+  standingsScopeEl.textContent = `${label} standings for ${readable}`;
+}
+
+function updateStandingsTiles(): void {
+  const districtRank = getRankForLevel("district");
+  const regionRank = getRankForLevel("region");
+  const stateRank = getRankForLevel("state");
+
+  if (tileDistrict) tileDistrict.textContent = districtRank ? ordinal(districtRank) : "--";
+  if (tileRegional) tileRegional.textContent = regionRank ? ordinal(regionRank) : "--";
+  if (tileState) tileState.textContent = stateRank ? ordinal(stateRank) : "--";
+}
+
+function setStandingsLevel(level: StandingsLevel): void {
+  activeStandingsLevel = level;
+  standingsTabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.standingsLevel === level));
+  renderStandings();
+}
+function renderStandings(): void {
+  if (!standingsList) return;
+  standingsList.innerHTML = "";
+  updateStandingsScope(activeStandingsLevel);
+  if (league.length === 0) {
+    updateStandingsTiles();
+    return;
+  }
+  const sorted = getStandingsForLevel(activeStandingsLevel);
+  const highlightName = currentProgram?.name || teamName;
+  for (const team of sorted) {
+    const diff = team.pf - team.pa;
+    const winPct = team.wins + team.losses === 0 ? 0 : (team.wins / (team.wins + team.losses)) * 100;
+    const li = document.createElement("li");
+    if (team.name === highlightName) li.classList.add("highlight");
+    const prestigeStr = team.prestige ? ` | Prestige ${team.prestige}` : "";
+    li.innerHTML = `<div><strong>${team.name}</strong> <span class="meta record">${team.wins}-${team.losses} (${winPct.toFixed(0)}%)</span></div><div class="meta">PF ${team.pf} | PA ${team.pa} | Diff ${diff} | Rating ${team.rating.toFixed(0)}${prestigeStr}${team.lastResult ? ` | ${team.lastResult}` : ""}</div>`;
+    standingsList.appendChild(li);
+  }
+
+  // Home tile rankings based on standings position
+  updateStandingsScope(activeStandingsLevel);
+  updateStandingsTiles();
 function renderStandings(): void {
   const sorted = sortLeagueTeams();
   if (standingsList) {
@@ -681,6 +782,7 @@ let liveDualState: LiveDualState | null = null;
 let lastTournamentBracket: TournamentBracket | null = null;
 let latestResultSummary = "";
 let offseasonRecap = "";
+let activeStandingsLevel: StandingsLevel = "district";
 type RankingScope = "district" | "regional" | "state";
 type RankingSortKey = "rank" | "name" | "wins" | "ties" | "losses" | "rating" | "points";
 let rankingScope: RankingScope = "district";
@@ -714,8 +816,25 @@ function initLeague(): void {
     pa: 0,
     rating: p.prestige * 10,
     prestige: p.prestige,
+    districtId: p.districtId,
+    regionId: p.regionId,
+    stateId: p.stateId,
   }));
   postseasonPlayed = false;
+}
+
+function syncLeagueAffiliations(): void {
+  league = league.map((team) => {
+    const program = PROGRAM_LOOKUP.get(team.name);
+    return {
+      ...team,
+      id: team.id || program?.id,
+      districtId: team.districtId ?? program?.districtId,
+      regionId: team.regionId ?? program?.regionId,
+      stateId: team.stateId ?? program?.stateId,
+      prestige: team.prestige ?? program?.prestige,
+    };
+  });
 }
 
 
@@ -736,11 +855,21 @@ const COLOR_PALETTE: [string, string][] = [
   ["#0f172a", "#a855f7"],
 ];
 
+const TEAMS_PER_DISTRICT = 4;
+const DISTRICTS_PER_REGION = 4;
+const REGIONS_PER_STATE = 4;
+const TEAMS_PER_REGION = TEAMS_PER_DISTRICT * DISTRICTS_PER_REGION;
+const TEAMS_PER_STATE = TEAMS_PER_REGION * REGIONS_PER_STATE;
+const STATE_COUNT = Math.ceil(SCHOOL_NAMES.length / TEAMS_PER_STATE);
+
 const PROGRAMS: Program[] = SCHOOL_NAMES.map((name, idx) => {
   const color = COLOR_PALETTE[idx % COLOR_PALETTE.length];
   const prestige = 70 + (idx % 20);
   const wrestlingPopularity = 6 + (idx % 5);
   const athletics = 5 + (idx % 5);
+  const districtId = Math.floor(idx / TEAMS_PER_DISTRICT);
+  const regionId = Math.floor(districtId / DISTRICTS_PER_REGION);
+  const stateId = Math.min(Math.floor(regionId / REGIONS_PER_STATE), STATE_COUNT - 1);
   return {
     id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     name,
@@ -749,8 +878,13 @@ const PROGRAMS: Program[] = SCHOOL_NAMES.map((name, idx) => {
     blurb: "High school program with growing tradition.",
     wrestlingPopularity,
     athletics,
+    districtId,
+    regionId,
+    stateId,
   };
 });
+
+const PROGRAM_LOOKUP = new Map(PROGRAMS.map((p) => [p.name, p]));
 
 
 const FIRST_NAMES = [
@@ -1395,6 +1529,8 @@ const scoutReport = document.getElementById("scout-report") as HTMLDivElement;
 const goalsList = document.getElementById("goals-list") as HTMLUListElement;
 const weeklySummaryList = document.getElementById("weekly-summary") as HTMLUListElement;
 const standingsList = document.getElementById("standings-list") as HTMLUListElement | null;
+const standingsScopeEl = document.getElementById("standings-scope") as HTMLParagraphElement | null;
+const standingsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-standings-level]"));
 const postseasonLogDiv = document.getElementById("postseason-log") as HTMLDivElement | null;
 const resultsDayEl = document.getElementById("results-day") as HTMLSpanElement | null;
 const resultsWeekEl = document.getElementById("results-week") as HTMLSpanElement | null;
@@ -1679,6 +1815,7 @@ function loadRoster(initial = false) {
     } else {
       initLeague();
     }
+    syncLeagueAffiliations();
     postseasonLog = parsed.postseasonLog || "";
     postseasonBracket = parsed.postseasonBracket || {};
     if (parsed.signedRecruits && Array.isArray(parsed.signedRecruits)) {
@@ -3231,6 +3368,14 @@ document.querySelectorAll<HTMLElement>("[data-target]").forEach((el) => {
   });
 });
 
+standingsTabs.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const level = btn.dataset.standingsLevel as StandingsLevel | undefined;
+    if (!level) return;
+    setStandingsLevel(level);
+  });
+});
+
 homeNextDayBtn?.addEventListener("click", () => {
   seasonNextBtn.click();
 });
@@ -3249,9 +3394,28 @@ function updateLeague(teamAName: string, teamBName: string, scoreA: number, scor
   if (league.length === 0) initLeague();
   const findOrAdd = (name: string): LeagueTeam => {
     let entry = league.find((t) => t.name === name);
+    const program = PROGRAM_LOOKUP.get(name);
     if (!entry) {
-      entry = { name, wins: 0, losses: 0, pf: 0, pa: 0, rating: 1200, prestige: 80 };
+      entry = {
+        id: program?.id,
+        name,
+        wins: 0,
+        losses: 0,
+        pf: 0,
+        pa: 0,
+        rating: 1200,
+        prestige: program?.prestige ?? 80,
+        districtId: program?.districtId,
+        regionId: program?.regionId,
+        stateId: program?.stateId,
+      };
       league.push(entry);
+    } else {
+      entry.id = entry.id || program?.id;
+      entry.districtId = entry.districtId ?? program?.districtId;
+      entry.regionId = entry.regionId ?? program?.regionId;
+      entry.stateId = entry.stateId ?? program?.stateId;
+      entry.prestige = entry.prestige ?? program?.prestige;
     }
     return entry;
   };
@@ -3312,6 +3476,9 @@ function generateTournamentOpponent(weightClass: number): Wrestler {
       blurb: "",
       wrestlingPopularity: 7,
       athletics: 7,
+      districtId: 0,
+      regionId: 0,
+      stateId: 0,
     };
   const w = generateWrestler(program, weightClass);
   w.morale = 70;

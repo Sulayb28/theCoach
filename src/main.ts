@@ -1312,7 +1312,6 @@ const restPreviewEl = document.getElementById("rest-preview") as HTMLDivElement 
 const healPreviewEl = document.getElementById("heal-preview") as HTMLDivElement | null;
 const tournamentBracketsEl = document.getElementById("tournament-brackets") as HTMLDivElement | null;
 const tournamentRunBtn = document.getElementById("tournament-run-btn") as HTMLButtonElement | null;
-const tournamentReseedBtn = document.getElementById("tournament-resim-btn") as HTMLButtonElement | null;
 const tournamentScoresEl = document.getElementById("tournament-scores") as HTMLOListElement | null;
 const tournamentChampionEl = document.getElementById("tournament-champion") as HTMLDivElement | null;
 const tournamentErrorEl = document.getElementById("tournament-error") as HTMLDivElement | null;
@@ -2917,7 +2916,6 @@ const handleTournamentSim = () => {
 };
 
 tournamentRunBtn?.addEventListener("click", handleTournamentSim);
-tournamentReseedBtn?.addEventListener("click", handleTournamentSim);
 
 autoFillBtn?.addEventListener("click", () => {
   for (const wc of WEIGHT_CLASSES) {

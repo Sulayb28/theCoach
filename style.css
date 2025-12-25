@@ -272,6 +272,22 @@ button:hover {
   align-items: center;
 }
 
+.standings-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.standings-tabs button {
+  margin-top: 0;
+  flex: 1;
+}
+
+.standings-tabs button.active {
+  background: #22c55e;
+  color: #022c22;
+  border-color: #22c55e;
+}
+
 @media (max-width: 640px) {
   .coach-menu-header {
     flex-direction: column;

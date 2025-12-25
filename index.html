@@ -15,6 +15,7 @@
       <button class="nav-btn" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="training">Training</button>
       <button class="nav-btn" data-view="duals">Duals</button>
+      <button class="nav-btn" data-view="results">Results</button>
     </nav>
 
     <section id="program-select" class="card overlay fullscreen">
@@ -41,6 +42,16 @@
             <div class="dual-day">
               <div id="home-day-label">Wednesday</div>
               <button id="home-next-day-btn" class="primary">Next Day</button>
+            </div>
+          </div>
+          <div class="latest-summary">
+            <div>
+              <p class="eyebrow">Latest Result</p>
+              <p id="latest-result" class="meta">No results yet.</p>
+            </div>
+            <div>
+              <p class="eyebrow">Next Opponent</p>
+              <p id="next-opponent" class="meta">TBD</p>
             </div>
           </div>
           <div class="tile-grid">
@@ -71,6 +82,10 @@
             <button class="tile-card" data-target="dashboard">
               <div class="tile-title">State Ranking</div>
               <div class="tile-body" id="tile-state-rank">--</div>
+            </button>
+            <button class="tile-card" data-target="results">
+              <div class="tile-title">Competition Results</div>
+              <div class="tile-body">Duals & tournaments</div>
             </button>
             <button class="tile-card" data-target="duals">
               <div class="tile-title">Duals</div>
@@ -122,6 +137,8 @@
             <option value="conditioning">Conditioning</option>
             <option value="technique">Technique</option>
           </select>
+          <p id="training-effects" class="meta">Focus effects will appear here.</p>
+          <p class="coach-tip meta">Tip: Next Day runs a live dual on Wednesdays and the tournament on Saturdays.</p>
         </div>
         <div class="coach-bar-right">
           <button id="season-next-btn" type="button" class="primary">Next Day</button>
@@ -199,9 +216,11 @@
               <h3>Upcoming</h3>
               <ul id="schedule-list" class="list"></ul>
             </div>
-            <div>
-              <h3>Results</h3>
-              <ul id="results-list" class="list"></ul>
+            <div class="results-callout" data-target="results">
+              <p class="eyebrow">Competition Results</p>
+              <h3>Open full recap page</h3>
+              <p class="meta">View dual meets, tournaments, and season standings on their own screen.</p>
+              <button type="button" class="ghost" aria-label="Open results page">View Results</button>
             </div>
           </div>
           <div id="scout-report" class="log"></div>
@@ -213,34 +232,38 @@
         </section>
 
         <section class="card">
-          <h2>Weekly Summary</h2>
-          <ul id="weekly-summary" class="list"></ul>
-        </section>
-
-        <section class="card">
-          <h2>Standings</h2>
-          <ul id="standings-list" class="list"></ul>
-        </section>
-
-        <section class="card">
-          <h2>Postseason</h2>
-          <div id="postseason-log" class="log"></div>
-        </section>
-
-        <section class="card">
           <h2>Weekly Coaching Decisions</h2>
           <ul id="coaching-suggestions" class="list"></ul>
           <div class="field-row">
             <button id="rest-fatigue-btn" type="button">Rest High Fatigue</button>
             <button id="heal-minors-btn" type="button">Treat Minor Injuries</button>
           </div>
+          <div class="meta" id="rest-preview"></div>
+          <div class="meta" id="heal-preview"></div>
         </section>
       </section>
 
-      <section id="view-training" class="view">
-        <section class="card">
-          <h2>Training & Season Log</h2>
-          <div id="season-log" class="log"></div>
+      <section id="view-results" class="view">
+        <section class="bracket-wrapper">
+          <div class="coach-menu-header">
+            <div>
+              <p class="eyebrow">Bracket Room</p>
+              <h2>Individual Tournament (per weight)</h2>
+              <p class="meta">Eight-wrestler brackets for each weight class with quarters, semis, and finals.</p>
+            </div>
+            <div class="field-row">
+              <button id="tournament-run-btn" type="button" class="primary">Simulate Bracket</button>
+            </div>
+          </div>
+          <div id="tournament-error" class="error-text"></div>
+          <div class="tournament-grid">
+            <div class="bracket-matrix" id="tournament-brackets"></div>
+            <div class="bracket-col scores-col">
+              <h3>Placings</h3>
+              <ol id="tournament-scores" class="list scores-list"></ol>
+              <div id="tournament-champion" class="champion-callout"></div>
+            </div>
+          </div>
         </section>
       </section>
 
@@ -264,10 +287,10 @@
               <option value="conservative">Conservative</option>
             </select>
           </div>
-          <button id="vs-opponent-btn" type="button" class="primary">Simulate Scheduled Dual</button>
-        </section>
-
-        <section class="card">
+          <div class="field-row">
+            <button id="vs-opponent-btn" type="button" class="primary">Simulate Scheduled Dual</button>
+            <button id="quick-sim-btn" type="button">Quick Sim Dual</button>
+          </div>
           <h2>Dual Board</h2>
           <div id="vs-opponent-log" class="dual-board"></div>
         </section>

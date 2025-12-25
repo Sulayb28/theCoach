@@ -241,18 +241,6 @@ function renderWeeklySummaries(): void {
   if (homeTeamNameEl) homeTeamNameEl.textContent = teamName || "Your School";
 }
 
-function sortLeagueTeams(): LeagueTeam[] {
-  return [...league].sort((a, b) => {
-    const winPctA = a.wins + a.losses + (a.ties ?? 0) === 0 ? 0 : a.wins / (a.wins + a.losses + (a.ties ?? 0));
-    const winPctB = b.wins + b.losses + (b.ties ?? 0) === 0 ? 0 : b.wins / (b.wins + b.losses + (b.ties ?? 0));
-    if (winPctA !== winPctB) return winPctB - winPctA;
-    const diffA = a.pf - a.pa;
-    const diffB = b.pf - b.pa;
-    if (diffA !== diffB) return diffB - diffA;
-    return b.rating - a.rating;
-  });
-}
-
 function setActiveView(viewKey: string): void {
   for (const btn of navButtons) {
     btn.classList.toggle("active", btn.dataset.view === viewKey);
@@ -262,7 +250,10 @@ function setActiveView(viewKey: string): void {
   }
   if (viewKey === "home") refreshLatestSummary();
   if (viewKey === "results") renderTournamentIfAvailable();
-  if (viewKey === "rankings") renderRankingTable();
+  if (viewKey === "rankings") {
+    renderRankingTable();
+    renderWrestlerRankings();
+  }
 }
 
 function ensureGazetteOverlay(): void {
@@ -601,6 +592,7 @@ function renderStandings(): void {
   updateStandingsScope(activeStandingsLevel);
   if (league.length === 0) {
     updateStandingsTiles();
+    renderRankingTable();
     return;
   }
   const sorted = getStandingsForLevel(activeStandingsLevel);
@@ -618,51 +610,100 @@ function renderStandings(): void {
   // Home tile rankings based on standings position
   updateStandingsScope(activeStandingsLevel);
   updateStandingsTiles();
-function renderStandings(): void {
-  const sorted = sortLeagueTeams();
-  if (standingsList) {
-    standingsList.innerHTML = "";
-    for (const team of sorted) {
-      const diff = team.pf - team.pa;
-      const winPct = team.wins + team.losses + (team.ties ?? 0) === 0 ? 0 : (team.wins / (team.wins + team.losses + (team.ties ?? 0))) * 100;
-      const li = document.createElement("li");
-      if (team.name === teamName) li.classList.add("highlight");
-      const prestigeStr = team.prestige ? ` | Prestige ${team.prestige}` : "";
-      const ties = team.ties ?? 0;
-      const record = ties > 0 ? `${team.wins}-${ties}-${team.losses}` : `${team.wins}-${team.losses}`;
-      li.innerHTML = `<div><strong>${team.name}</strong> <span class="meta record">${record} (${winPct.toFixed(0)}%)</span></div><div class="meta">PF ${team.pf} | PA ${team.pa} | Diff ${diff} | Rating ${team.rating.toFixed(0)}${prestigeStr}${team.lastResult ? ` | ${team.lastResult}` : ""}</div>`;
-      standingsList.appendChild(li);
-    }
-  }
-
-  // Home tile rankings based on standings position
-  const myRank = sorted.findIndex((t) => t.name === teamName) + 1;
-  const ordinal = (n: number) => {
-    const s = ["th", "st", "nd", "rd"];
-    const v = n % 100;
-    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-  };
-  if (tileDistrict) tileDistrict.textContent = myRank ? ordinal(myRank) : "--";
-  if (tileRegional) tileRegional.textContent = myRank ? ordinal(Math.max(1, myRank * 2)) : "--";
-  if (tileState) tileState.textContent = myRank ? ordinal(Math.max(1, myRank * 4)) : "--";
-
   renderRankingTable();
 }
 
 function getScopedStandings(scope: RankingScope): { team: LeagueTeam; rank: number; points: number; wins: number; ties: number; losses: number }[] {
-  const sorted = sortLeagueTeams();
-  return sorted.map((team, idx) => {
-    const baseRank = idx + 1;
-    const scopeRank = scope === "district" ? baseRank : scope === "regional" ? baseRank * 2 : baseRank * 4;
-    return {
-      team,
-      rank: scopeRank,
-      wins: team.wins,
-      ties: team.ties ?? 0,
-      losses: team.losses,
-      points: Math.max(0, team.pf),
-    };
-  });
+  const level: StandingsLevel = scope === "regional" ? "region" : scope === "district" ? "district" : "state";
+  const scopedStandings = getStandingsForLevel(level);
+  return scopedStandings.map((team, idx) => ({
+    team,
+    rank: idx + 1,
+    wins: team.wins,
+    ties: team.ties ?? 0,
+    losses: team.losses,
+    points: Math.max(0, team.pf),
+  }));
+}
+
+function buildWrestlerRankingOptions(): void {
+  if (!wrestlerRankingWeightSelect) return;
+  const existing = new Set(Array.from(wrestlerRankingWeightSelect.options).map((o) => o.value));
+  for (const wc of WEIGHT_CLASSES) {
+    if (existing.has(String(wc))) continue;
+    const opt = document.createElement("option");
+    opt.value = String(wc);
+    opt.textContent = `${wc} lbs`;
+    wrestlerRankingWeightSelect.appendChild(opt);
+  }
+}
+
+function regenerateWrestlerRankings(): void {
+  wrestlerRankings.clear();
+  const programPool = (league.length ? league.map((t) => PROGRAM_LOOKUP.get(t.name)) : PROGRAMS).filter(
+    (p): p is Program => !!p
+  );
+  const p4pPool: WrestlerRankingEntry[] = [];
+  for (const wc of WEIGHT_CLASSES) {
+    const generated: WrestlerRankingEntry[] = [];
+    for (const program of programPool) {
+      const wrestler = generateWrestler(program, wc);
+      generated.push({
+        name: wrestler.name,
+        program: program.name,
+        weightClass: wc,
+        rating: overallScore(wrestler),
+        classYear: wrestler.classYear,
+        rank: 0,
+      });
+    }
+    generated.sort((a, b) => b.rating - a.rating);
+    const top = generated.slice(0, 10).map((entry, idx) => ({ ...entry, rank: idx + 1 }));
+    wrestlerRankings.set(wc, top);
+    p4pPool.push(...generated);
+  }
+  p4pPool.sort((a, b) => b.rating - a.rating);
+  wrestlerRankings.set(
+    "p4p",
+    p4pPool.slice(0, 15).map((entry, idx) => ({ ...entry, rank: idx + 1 }))
+  );
+}
+
+function renderWrestlerRankings(): void {
+  if (!wrestlerRankingList) return;
+  buildWrestlerRankingOptions();
+  if (wrestlerRankings.size === 0) regenerateWrestlerRankings();
+  const selected = wrestlerRankingWeightSelect?.value === "p4p" ? "p4p" : Number(wrestlerRankingWeightSelect?.value || 0);
+  const entries = wrestlerRankings.get(selected) || [];
+  wrestlerRankingList.innerHTML = "";
+  if (entries.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "Rankings will populate once more data is available.";
+    wrestlerRankingList.appendChild(li);
+    return;
+  }
+  for (const entry of entries) {
+    const li = document.createElement("li");
+    const title = document.createElement("div");
+    title.className = "wrestler-ranking-name";
+    const name = document.createElement("strong");
+    name.textContent = `#${entry.rank} ${entry.name}`;
+    const meta = document.createElement("span");
+    const weightLabel = selected === "p4p" ? `${entry.weightClass} lbs` : `${entry.weightClass} lbs`;
+    const classLabel = entry.classYear ? ` • ${entry.classYear}` : "";
+    meta.className = "meta";
+    meta.textContent = `${weightLabel} • ${entry.program}${classLabel}`;
+    title.appendChild(name);
+    title.appendChild(meta);
+
+    const badge = document.createElement("span");
+    badge.className = "wrestler-ranking-badge";
+    badge.textContent = `OVR ${entry.rating.toFixed(1)}`;
+
+    li.appendChild(title);
+    li.appendChild(badge);
+    wrestlerRankingList.appendChild(li);
+  }
 }
 
 function renderRankingTable(): void {
@@ -790,6 +831,16 @@ let rankingSort: { key: RankingSortKey; direction: "asc" | "desc" } = { key: "ra
 let rankingFilter = "";
 let rankingPage = 1;
 const RANKING_PAGE_SIZE = 10;
+type WrestlerRankingKey = "p4p" | number;
+type WrestlerRankingEntry = {
+  name: string;
+  program: string;
+  weightClass: number;
+  rating: number;
+  classYear?: Wrestler["classYear"];
+  rank: number;
+};
+const wrestlerRankings = new Map<WrestlerRankingKey, WrestlerRankingEntry[]>();
 const TRAINING_EFFECTS: Record<TrainingFocus, string> = {
   balanced: "+neutral/top/bottom/technique (small) | -fatigue",
   neutral: "+neutral/technique | -fatigue",
@@ -855,9 +906,9 @@ const COLOR_PALETTE: [string, string][] = [
   ["#0f172a", "#a855f7"],
 ];
 
-const TEAMS_PER_DISTRICT = 4;
-const DISTRICTS_PER_REGION = 4;
-const REGIONS_PER_STATE = 4;
+const TEAMS_PER_DISTRICT = 8;
+const DISTRICTS_PER_REGION = 8;
+const REGIONS_PER_STATE = 8;
 const TEAMS_PER_REGION = TEAMS_PER_DISTRICT * DISTRICTS_PER_REGION;
 const TEAMS_PER_STATE = TEAMS_PER_REGION * REGIONS_PER_STATE;
 const STATE_COUNT = Math.ceil(SCHOOL_NAMES.length / TEAMS_PER_STATE);
@@ -1443,6 +1494,8 @@ function applyProgram(program: Program, opts?: { keepTeamName?: boolean; skipRos
   renderSchedule();
   renderRecruitLists();
   renderWeeklySummaries();
+  regenerateWrestlerRankings();
+  renderWrestlerRankings();
 }
 
 
@@ -1560,6 +1613,8 @@ const rankingPageInfo = document.getElementById("ranking-page-info") as HTMLSpan
 const rankingFindInput = document.getElementById("ranking-find-input") as HTMLInputElement | null;
 const rankingFindBtn = document.getElementById("ranking-find-btn") as HTMLButtonElement | null;
 const rankingHeaders = Array.from(document.querySelectorAll<HTMLTableCellElement>("#ranking-table thead th[data-sort]"));
+const wrestlerRankingWeightSelect = document.getElementById("wrestler-ranking-weight") as HTMLSelectElement | null;
+const wrestlerRankingList = document.getElementById("wrestler-ranking-list") as HTMLOListElement | null;
 const latestResultEl = document.getElementById("latest-result") as HTMLParagraphElement | null;
 const nextOpponentEl = document.getElementById("next-opponent") as HTMLParagraphElement | null;
 const trainingEffectsEl = document.getElementById("training-effects") as HTMLParagraphElement | null;
@@ -3320,6 +3375,10 @@ rankingTabButtons.forEach((btn) => {
   });
 });
 
+wrestlerRankingWeightSelect?.addEventListener("change", () => {
+  renderWrestlerRankings();
+});
+
 const triggerRankingSearch = () => {
   rankingFilter = (rankingFindInput?.value ?? "").trim();
   rankingPage = 1;
@@ -3352,7 +3411,7 @@ rankingHeaders.forEach((header) => {
     if (rankingSort.key === sortKey) {
       rankingSort = { key: sortKey, direction: rankingSort.direction === "asc" ? "desc" : "asc" };
     } else {
-      rankingSort = { key: sortKey, direction: sortKey === "name" ? "asc" : "desc" };
+      rankingSort = { key: sortKey, direction: "asc" };
     }
     rankingPage = 1;
     renderRankingTable();

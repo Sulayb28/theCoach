@@ -13,6 +13,7 @@
     <nav class="nav">
       <button class="nav-btn active" data-view="home">Home</button>
       <button class="nav-btn" data-view="dashboard">Dashboard</button>
+      <button class="nav-btn" data-view="rankings">Rankings</button>
       <button class="nav-btn" data-view="training">Training</button>
       <button class="nav-btn" data-view="duals">Duals</button>
       <button class="nav-btn" data-view="results">Results</button>
@@ -55,7 +56,7 @@
             </div>
           </div>
           <div class="tile-grid">
-            <button class="tile-card" data-target="dashboard">
+            <button class="tile-card" data-target="rankings">
               <div class="tile-title">District Ranking</div>
               <div class="tile-body" id="tile-district-rank">--</div>
             </button>
@@ -67,7 +68,7 @@
               <div class="tile-title">School Profile</div>
               <div class="tile-body">Roster & prestige</div>
             </button>
-            <button class="tile-card" data-target="dashboard">
+            <button class="tile-card" data-target="rankings">
               <div class="tile-title">Regional Ranking</div>
               <div class="tile-body" id="tile-regional-rank">--</div>
             </button>
@@ -79,7 +80,7 @@
               <div class="tile-title">Coach's Profile</div>
               <div class="tile-body">Goals & prestige</div>
             </button>
-            <button class="tile-card" data-target="dashboard">
+            <button class="tile-card" data-target="rankings">
               <div class="tile-title">State Ranking</div>
               <div class="tile-body" id="tile-state-rank">--</div>
             </button>
@@ -143,6 +144,55 @@
         <div class="coach-bar-right">
           <button id="season-next-btn" type="button" class="primary">Next Day</button>
         </div>
+      </section>
+
+      <section id="view-rankings" class="view">
+        <section class="card">
+          <div class="coach-menu-header">
+            <div>
+              <p class="eyebrow">Rankings Center</p>
+              <h2>District, Regional, and State Standings</h2>
+              <p class="meta">Sort and page through standings using the same data that powers your season updates.</p>
+            </div>
+            <div class="field">
+              <label class="label" for="ranking-find-input">Find School</label>
+              <div class="input-row">
+                <input id="ranking-find-input" placeholder="Enter school name" />
+                <button id="ranking-find-btn" type="button" class="ghost">Search</button>
+              </div>
+              <p class="meta">Filters within the active tab and highlights matches.</p>
+            </div>
+          </div>
+
+          <div class="ranking-tabs" role="tablist" aria-label="Ranking scopes">
+            <button class="ranking-tab active" data-scope="district" role="tab" aria-selected="true">District</button>
+            <button class="ranking-tab" data-scope="regional" role="tab" aria-selected="false">Regional</button>
+            <button class="ranking-tab" data-scope="state" role="tab" aria-selected="false">State</button>
+          </div>
+
+          <div class="ranking-table-wrap">
+            <table id="ranking-table" class="ranking-table">
+              <thead>
+                <tr>
+                  <th data-sort="rank" scope="col">Rank</th>
+                  <th data-sort="name" scope="col">Team</th>
+                  <th data-sort="wins" scope="col">Wins</th>
+                  <th data-sort="ties" scope="col">Ties</th>
+                  <th data-sort="losses" scope="col">Losses</th>
+                  <th data-sort="rating" scope="col">Rating</th>
+                  <th data-sort="points" scope="col">Points</th>
+                </tr>
+              </thead>
+              <tbody id="ranking-table-body"></tbody>
+            </table>
+          </div>
+
+          <div class="ranking-pagination">
+            <button id="ranking-prev-btn" type="button" class="ghost">Previous</button>
+            <span id="ranking-page-info" class="meta">Page 1 of 1</span>
+            <button id="ranking-next-btn" type="button" class="ghost">Next</button>
+          </div>
+        </section>
       </section>
 
       <section id="view-dashboard" class="view active">

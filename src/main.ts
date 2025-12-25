@@ -194,6 +194,7 @@ interface LeagueTeam {
   id?: string;
   name: string;
   wins: number;
+  ties?: number;
   losses: number;
   pf: number;
   pa: number;
@@ -240,6 +241,18 @@ function renderWeeklySummaries(): void {
   if (homeTeamNameEl) homeTeamNameEl.textContent = teamName || "Your School";
 }
 
+function sortLeagueTeams(): LeagueTeam[] {
+  return [...league].sort((a, b) => {
+    const winPctA = a.wins + a.losses + (a.ties ?? 0) === 0 ? 0 : a.wins / (a.wins + a.losses + (a.ties ?? 0));
+    const winPctB = b.wins + b.losses + (b.ties ?? 0) === 0 ? 0 : b.wins / (b.wins + b.losses + (b.ties ?? 0));
+    if (winPctA !== winPctB) return winPctB - winPctA;
+    const diffA = a.pf - a.pa;
+    const diffB = b.pf - b.pa;
+    if (diffA !== diffB) return diffB - diffA;
+    return b.rating - a.rating;
+  });
+}
+
 function setActiveView(viewKey: string): void {
   for (const btn of navButtons) {
     btn.classList.toggle("active", btn.dataset.view === viewKey);
@@ -249,6 +262,7 @@ function setActiveView(viewKey: string): void {
   }
   if (viewKey === "home") refreshLatestSummary();
   if (viewKey === "results") renderTournamentIfAvailable();
+  if (viewKey === "rankings") renderRankingTable();
 }
 
 function ensureGazetteOverlay(): void {
@@ -604,6 +618,128 @@ function renderStandings(): void {
   // Home tile rankings based on standings position
   updateStandingsScope(activeStandingsLevel);
   updateStandingsTiles();
+function renderStandings(): void {
+  const sorted = sortLeagueTeams();
+  if (standingsList) {
+    standingsList.innerHTML = "";
+    for (const team of sorted) {
+      const diff = team.pf - team.pa;
+      const winPct = team.wins + team.losses + (team.ties ?? 0) === 0 ? 0 : (team.wins / (team.wins + team.losses + (team.ties ?? 0))) * 100;
+      const li = document.createElement("li");
+      if (team.name === teamName) li.classList.add("highlight");
+      const prestigeStr = team.prestige ? ` | Prestige ${team.prestige}` : "";
+      const ties = team.ties ?? 0;
+      const record = ties > 0 ? `${team.wins}-${ties}-${team.losses}` : `${team.wins}-${team.losses}`;
+      li.innerHTML = `<div><strong>${team.name}</strong> <span class="meta record">${record} (${winPct.toFixed(0)}%)</span></div><div class="meta">PF ${team.pf} | PA ${team.pa} | Diff ${diff} | Rating ${team.rating.toFixed(0)}${prestigeStr}${team.lastResult ? ` | ${team.lastResult}` : ""}</div>`;
+      standingsList.appendChild(li);
+    }
+  }
+
+  // Home tile rankings based on standings position
+  const myRank = sorted.findIndex((t) => t.name === teamName) + 1;
+  const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+  if (tileDistrict) tileDistrict.textContent = myRank ? ordinal(myRank) : "--";
+  if (tileRegional) tileRegional.textContent = myRank ? ordinal(Math.max(1, myRank * 2)) : "--";
+  if (tileState) tileState.textContent = myRank ? ordinal(Math.max(1, myRank * 4)) : "--";
+
+  renderRankingTable();
+}
+
+function getScopedStandings(scope: RankingScope): { team: LeagueTeam; rank: number; points: number; wins: number; ties: number; losses: number }[] {
+  const sorted = sortLeagueTeams();
+  return sorted.map((team, idx) => {
+    const baseRank = idx + 1;
+    const scopeRank = scope === "district" ? baseRank : scope === "regional" ? baseRank * 2 : baseRank * 4;
+    return {
+      team,
+      rank: scopeRank,
+      wins: team.wins,
+      ties: team.ties ?? 0,
+      losses: team.losses,
+      points: Math.max(0, team.pf),
+    };
+  });
+}
+
+function renderRankingTable(): void {
+  if (!rankingTableBody) return;
+  const rows = getScopedStandings(rankingScope);
+  const filtered = rankingFilter ? rows.filter((r) => r.team.name.toLowerCase().includes(rankingFilter.toLowerCase())) : rows;
+
+  const sorted = [...filtered].sort((a, b) => {
+    const direction = rankingSort.direction === "asc" ? 1 : -1;
+    if (rankingSort.key === "name") {
+      return a.team.name.localeCompare(b.team.name) * direction;
+    }
+    const valueFor = (r: (typeof rows)[number]) => {
+      switch (rankingSort.key) {
+        case "rank":
+          return r.rank;
+        case "wins":
+          return r.wins;
+        case "ties":
+          return r.ties;
+        case "losses":
+          return r.losses;
+        case "rating":
+          return r.team.rating;
+        case "points":
+          return r.points;
+        default:
+          return r.rank;
+      }
+    };
+    const valA = valueFor(a);
+    const valB = valueFor(b);
+    if (valA === valB) return a.rank - b.rank;
+    return (valA - valB) * direction;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / RANKING_PAGE_SIZE));
+  if (rankingPage > totalPages) rankingPage = totalPages;
+  const startIdx = (rankingPage - 1) * RANKING_PAGE_SIZE;
+  const pageRows = sorted.slice(startIdx, startIdx + RANKING_PAGE_SIZE);
+
+  rankingTableBody.innerHTML = "";
+  if (pageRows.length === 0) {
+    const emptyRow = document.createElement("tr");
+    const emptyCell = document.createElement("td");
+    emptyCell.colSpan = 7;
+    emptyCell.textContent = rankingFilter ? "No schools match that search." : "No teams available yet.";
+    emptyRow.appendChild(emptyCell);
+    rankingTableBody.appendChild(emptyRow);
+  } else {
+    for (const row of pageRows) {
+      const tr = document.createElement("tr");
+      if (row.team.name === teamName) tr.classList.add("highlight");
+      if (rankingFilter && row.team.name.toLowerCase().includes(rankingFilter.toLowerCase())) tr.classList.add("search-match");
+      const record = row.ties > 0 ? `${row.wins}-${row.ties}-${row.losses}` : `${row.wins}-${row.losses}`;
+      tr.innerHTML = `
+        <td>${row.rank}</td>
+        <td>${row.team.name}</td>
+        <td>${row.wins}</td>
+        <td>${row.ties}</td>
+        <td>${row.losses}</td>
+        <td>${row.team.rating.toFixed(0)}</td>
+        <td>${row.points.toFixed(0)}<div class="meta">Record ${record}</div></td>
+      `;
+      rankingTableBody.appendChild(tr);
+    }
+  }
+
+  if (rankingPageInfo) rankingPageInfo.textContent = `Page ${rankingPage} of ${totalPages}`;
+  if (rankingPrevBtn) rankingPrevBtn.disabled = rankingPage <= 1;
+  if (rankingNextBtn) rankingNextBtn.disabled = rankingPage >= totalPages;
+
+  rankingHeaders.forEach((h) => {
+    const sortKey = h.dataset.sort as RankingSortKey | undefined;
+    h.classList.toggle("sorted", sortKey === rankingSort.key);
+    h.classList.toggle("desc", sortKey === rankingSort.key && rankingSort.direction === "desc");
+  });
 }
 
 
@@ -647,6 +783,13 @@ let lastTournamentBracket: TournamentBracket | null = null;
 let latestResultSummary = "";
 let offseasonRecap = "";
 let activeStandingsLevel: StandingsLevel = "district";
+type RankingScope = "district" | "regional" | "state";
+type RankingSortKey = "rank" | "name" | "wins" | "ties" | "losses" | "rating" | "points";
+let rankingScope: RankingScope = "district";
+let rankingSort: { key: RankingSortKey; direction: "asc" | "desc" } = { key: "rank", direction: "asc" };
+let rankingFilter = "";
+let rankingPage = 1;
+const RANKING_PAGE_SIZE = 10;
 const TRAINING_EFFECTS: Record<TrainingFocus, string> = {
   balanced: "+neutral/top/bottom/technique (small) | -fatigue",
   neutral: "+neutral/technique | -fatigue",
@@ -667,6 +810,7 @@ function initLeague(): void {
     id: p.id,
     name: p.name,
     wins: 0,
+    ties: 0,
     losses: 0,
     pf: 0,
     pa: 0,
@@ -1408,6 +1552,14 @@ const tileRegional = document.getElementById("tile-regional-rank") as HTMLDivEle
 const tileState = document.getElementById("tile-state-rank") as HTMLDivElement | null;
 const navButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".nav-btn"));
 const views = Array.from(document.querySelectorAll<HTMLElement>(".view"));
+const rankingTabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".ranking-tab"));
+const rankingTableBody = document.querySelector("#ranking-table-body") as HTMLTableSectionElement | null;
+const rankingPrevBtn = document.getElementById("ranking-prev-btn") as HTMLButtonElement | null;
+const rankingNextBtn = document.getElementById("ranking-next-btn") as HTMLButtonElement | null;
+const rankingPageInfo = document.getElementById("ranking-page-info") as HTMLSpanElement | null;
+const rankingFindInput = document.getElementById("ranking-find-input") as HTMLInputElement | null;
+const rankingFindBtn = document.getElementById("ranking-find-btn") as HTMLButtonElement | null;
+const rankingHeaders = Array.from(document.querySelectorAll<HTMLTableCellElement>("#ranking-table thead th[data-sort]"));
 const latestResultEl = document.getElementById("latest-result") as HTMLParagraphElement | null;
 const nextOpponentEl = document.getElementById("next-opponent") as HTMLParagraphElement | null;
 const trainingEffectsEl = document.getElementById("training-effects") as HTMLParagraphElement | null;
@@ -3150,6 +3302,60 @@ navButtons.forEach((btn) => {
     if (!target) return;
     setActiveView(target);
     if (target === "results") renderTournamentIfAvailable();
+  });
+});
+
+rankingTabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const scope = btn.dataset.scope as RankingScope | undefined;
+    if (!scope) return;
+    rankingScope = scope;
+    rankingPage = 1;
+    rankingTabButtons.forEach((b) => {
+      const isActive = b.dataset.scope === scope;
+      b.classList.toggle("active", isActive);
+      b.setAttribute("aria-selected", `${isActive}`);
+    });
+    renderRankingTable();
+  });
+});
+
+const triggerRankingSearch = () => {
+  rankingFilter = (rankingFindInput?.value ?? "").trim();
+  rankingPage = 1;
+  renderRankingTable();
+};
+
+rankingFindBtn?.addEventListener("click", triggerRankingSearch);
+rankingFindInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    triggerRankingSearch();
+  }
+});
+
+rankingPrevBtn?.addEventListener("click", () => {
+  if (rankingPage <= 1) return;
+  rankingPage -= 1;
+  renderRankingTable();
+});
+
+rankingNextBtn?.addEventListener("click", () => {
+  rankingPage += 1;
+  renderRankingTable();
+});
+
+rankingHeaders.forEach((header) => {
+  header.addEventListener("click", () => {
+    const sortKey = header.dataset.sort as RankingSortKey | undefined;
+    if (!sortKey) return;
+    if (rankingSort.key === sortKey) {
+      rankingSort = { key: sortKey, direction: rankingSort.direction === "asc" ? "desc" : "asc" };
+    } else {
+      rankingSort = { key: sortKey, direction: sortKey === "name" ? "asc" : "desc" };
+    }
+    rankingPage = 1;
+    renderRankingTable();
   });
 });
 

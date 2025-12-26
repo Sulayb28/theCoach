@@ -30,6 +30,7 @@ interface Wrestler {
   injury?: { type: "minor" | "moderate" | "major"; days: number };
   form?: number; // -2 cold to +2 hot
   formDays?: number;
+  programName?: string;
 }
 
 
@@ -175,6 +176,7 @@ interface WeightBracket {
   semifinals: TournamentMatch[];
   final: TournamentMatch | null;
   champion?: string;
+  runnerUp?: string;
 }
 
 interface TournamentBracket {
@@ -182,12 +184,24 @@ interface TournamentBracket {
   placings: { weightClass: number; champion?: string; runnerUp?: string }[];
 }
 
+interface TournamentResult {
+  bracket: TournamentBracket;
+  teamScores: { name: string; points: number }[];
+  summary: string;
+}
+
 interface ScheduleEvent {
   week: number;
-  opponent: Team;
-  opponentProgramId?: string;
-  isTournament?: boolean;
-  result?: DualResult;
+  dual: {
+    opponent: Team;
+    opponentProgramId?: string;
+    result?: DualResult;
+  };
+  tournament: {
+    name: string;
+    fieldPrograms: Program[];
+    result?: TournamentResult;
+  };
 }
 
 interface LeagueTeam {
@@ -227,8 +241,8 @@ function renderWeeklySummaries(): void {
   }
   if (dualTeamLeft) dualTeamLeft.textContent = teamName || "Home";
   if (dualTeamRight) {
-    const upcoming = schedule.find((e) => !e.result);
-    dualTeamRight.textContent = upcoming?.opponent.name ?? "Opponent";
+    const upcoming = schedule.find((e) => !e.dual.result);
+    dualTeamRight.textContent = upcoming?.dual.opponent.name ?? "Opponent";
   }
   if (dualDayLabel) {
     const dayName = dayOfWeek === dualDay ? "Wednesday" : dayOfWeek === tournamentDay ? "Saturday" : `Day ${dayOfWeek}`;
@@ -542,10 +556,16 @@ function getStandingsForLevel(level: StandingsLevel): LeagueTeam[] {
   syncLeagueAffiliations();
   const baseProgram = getBaseProgram();
   if (!baseProgram) return sortStandings(league);
+  const userName = teamName || baseProgram.name;
   const filtered = league.filter((team) => {
-    if (level === "district") return team.districtId === baseProgram.districtId;
-    if (level === "region") return team.regionId === baseProgram.regionId;
-    return team.stateId === baseProgram.stateId;
+    const inScope =
+      level === "district"
+        ? team.districtId === baseProgram.districtId
+        : level === "region"
+        ? team.regionId === baseProgram.regionId
+        : team.stateId === baseProgram.stateId;
+    const isUser = team.name === userName;
+    return inScope || isUser;
   });
   return sortStandings(filtered.length > 0 ? filtered : league);
 }
@@ -1073,10 +1093,13 @@ function refreshLatestSummary(): void {
     latestResultEl.textContent = latestResultSummary || "No results yet.";
   }
   if (nextOpponentEl) {
-    const upcoming = schedule.find((e) => !e.result);
-    nextOpponentEl.textContent = upcoming
-      ? `${upcoming.opponent.name} (Week ${upcoming.week}${upcoming.isTournament ? " - Tournament" : ""})`
-      : "Season complete";
+    const upcoming = schedule.find((e) => !e.dual.result || !e.tournament.result);
+    if (upcoming) {
+      const label = !upcoming.dual.result ? `Dual vs ${upcoming.dual.opponent.name}` : upcoming.tournament.name;
+      nextOpponentEl.textContent = `${label} (Week ${upcoming.week})`;
+    } else {
+      nextOpponentEl.textContent = "Season complete";
+    }
   }
 }
 
@@ -1996,55 +2019,110 @@ function generateOpponentTeam(base: Team, nameOverride?: string): Team {
       morale: 70,
       health: 95,
       fatigue: 25,
+      programName: nameOverride || w.programName || pickRandom(SCHOOL_NAMES),
     };
     wrestlers.push(clone);
   }
   return { name: nameOverride || pickRandom(SCHOOL_NAMES), wrestlers };
 }
 
-function pickOpponentNames(count: number): string[] {
-  const mine = teamName || "My Team";
-  const pool = PROGRAMS.map((p) => p.name).filter((n) => n !== mine);
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  while (shuffled.length < count) {
-    const candidate = `${pickRandom(SCHOOL_NAMES)}`;
-    if (candidate !== mine && !shuffled.includes(candidate)) shuffled.push(candidate);
+function buildTeamFromProgram(program: Program): Team {
+  const wrestlers: Wrestler[] = [];
+  for (const wc of WEIGHT_CLASSES) {
+    const w = generateWrestler(program, wc);
+    w.programName = program.name;
+    wrestlers.push(w);
   }
+  return { name: program.name, wrestlers };
+}
+
+function samplePrograms(pool: Program[], count: number, exclude: Set<string>): Program[] {
+  const available = pool.filter((p) => !exclude.has(p.id));
+  const shuffled = [...available].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
 
-function generateSeasonSchedule(count = 8): void {
+function resetSeasonCounters(): void {
+  dayOfWeek = 1;
+  seasonWeek = 1;
+  seasonWins = 0;
+  seasonLosses = 0;
+  latestResultSummary = "";
+  postseasonPlayed = false;
+  postseasonLog = "";
+  postseasonBracket = {};
+  weeklySummaries.length = 0;
+  lastTournamentBracket = null;
+}
+
+function generateSeasonSchedule(weeks = 7): void {
   schedule.length = 0;
-  const my = buildTeamFromRoster(roster, teamName || "My Team");
-  const opponents = pickOpponentNames(count);
-  for (let i = 0; i < count; i++) {
-    const name = opponents[i];
-    const opp = generateOpponentTeam(my, name);
-    schedule.push({ week: i + 1, opponent: opp, isTournament: i === count - 1 });
+  const baseProgram = getBaseProgram();
+  if (!baseProgram) return;
+
+  resetSeasonCounters();
+
+  const districtOpponents = PROGRAMS.filter((p) => p.districtId === baseProgram.districtId && p.id !== baseProgram.id).sort(
+    () => Math.random() - 0.5
+  );
+  const fallbackPool = PROGRAMS.filter((p) => p.stateId === baseProgram.stateId && p.id !== baseProgram.id);
+
+  for (let i = 0; i < weeks; i++) {
+    const oppProgram = districtOpponents[i] || samplePrograms(fallbackPool, 1, new Set([baseProgram.id]))[0] || baseProgram;
+    const dualOpponent = buildTeamFromProgram(oppProgram);
+    const usedIds = new Set<string>([baseProgram.id, oppProgram.id]);
+    const fieldPrograms = [baseProgram, oppProgram, ...samplePrograms(fallbackPool, 6, usedIds)];
+    schedule.push({
+      week: i + 1,
+      dual: { opponent: dualOpponent, opponentProgramId: oppProgram.id },
+      tournament: { name: `Week ${i + 1} Invitational`, fieldPrograms },
+    });
   }
+
+  nextOpponent = schedule.find((e) => !e.dual.result)?.dual.opponent || null;
   renderSchedule();
-  nextOpponent = schedule.find((e) => !e.result)?.opponent || null;
   refreshLatestSummary();
+  updateSeasonUI();
 }
 
 function renderSchedule(): void {
   if (scheduleList) {
     scheduleList.innerHTML = "";
-    for (const ev of schedule.filter((e) => !e.result)) {
+    for (const ev of schedule) {
+      if (!ev.dual.result) {
+        const li = document.createElement("li");
+        li.innerHTML = `<div><strong>Week ${ev.week} • Wed Dual</strong> <span class="meta">${ev.dual.opponent.name}</span></div>`;
+        scheduleList.appendChild(li);
+      }
+      if (!ev.tournament.result) {
+        const li = document.createElement("li");
+        li.innerHTML = `<div><strong>Week ${ev.week} • Sat Tournament</strong> <span class="meta">${ev.tournament.name}</span></div>`;
+        scheduleList.appendChild(li);
+      }
+    }
+    if (scheduleList.children.length === 0) {
       const li = document.createElement("li");
-      li.innerHTML = `<div><strong>Week ${ev.week}</strong> <span class="meta">${ev.opponent.name}${ev.isTournament ? ' - Tournament (Sat)' : ' - Dual (Wed)'}</span></div>`;
+      li.innerHTML = `<div><strong>All events completed</strong></div>`;
       scheduleList.appendChild(li);
     }
   }
   if (resultsList) {
     resultsList.innerHTML = "";
-    for (const ev of schedule.filter((e) => e.result)) {
-      const r = ev.result!;
-      const li = document.createElement("li");
-      const label = ev.isTournament ? "Tournament" : ev.opponent.name;
-      const detail = ev.isTournament ? r.log : `${r.scoreA}-${r.scoreB}`;
-      li.innerHTML = `<div><strong>Week ${ev.week} • ${label}</strong> <span class="meta">${detail}</span></div>`;
-      resultsList.appendChild(li);
+    for (const ev of schedule) {
+      if (ev.dual.result) {
+        const r = ev.dual.result;
+        const li = document.createElement("li");
+        li.innerHTML = `<div><strong>Week ${ev.week} • Dual vs ${ev.dual.opponent.name}</strong> <span class="meta">${r.scoreA}-${r.scoreB}</span></div>`;
+        resultsList.appendChild(li);
+      }
+      if (ev.tournament.result) {
+        const r = ev.tournament.result;
+        const top = r.teamScores[0];
+        const detail = top ? `${top.name} (${top.points.toFixed(0)} pts)` : r.summary;
+        const li = document.createElement("li");
+        li.innerHTML = `<div><strong>Week ${ev.week} • ${ev.tournament.name}</strong> <span class="meta">${detail}</span></div>`;
+        resultsList.appendChild(li);
+      }
     }
   }
   refreshLatestSummary();
@@ -2062,7 +2140,10 @@ function getStarters(): Wrestler[] {
     const id = lineupSelections[wc];
     if (!id) continue;
     const w = roster.find((r) => r.id === id);
-    if (w) starters.push(w);
+    if (w) {
+      w.programName = teamName || currentProgram?.name || w.programName;
+      starters.push(w);
+    }
   }
   return starters;
 }
@@ -2480,15 +2561,14 @@ function finalizeLiveDual(): void {
 
   if (state.scheduledWeek) {
     const ev = schedule.find((e) => e.week === state.scheduledWeek);
-    if (ev) ev.result = dualResult;
+    if (ev) ev.dual.result = dualResult;
   }
 
+  const weekLabel = state.scheduledWeek || seasonWeek;
   if (outcome === "WIN") seasonWins++;
   else if (outcome === "LOSS") seasonLosses++;
   if (seasonLog) seasonLog.textContent = dualResult.log;
-  latestResultSummary = `Week ${seasonWeek}: ${state.myTeam.name} ${scoreA}-${scoreB} ${state.opponent.name}`;
-  seasonWeek++;
-  dayOfWeek = dayOfWeek === tournamentDay ? 1 : dayOfWeek + 1;
+  latestResultSummary = `Week ${weekLabel}: ${state.myTeam.name} ${scoreA}-${scoreB} ${state.opponent.name}`;
 
   for (const w of roster) {
     w.fatigue = Math.min(100, (w.fatigue || 20) + 12);
@@ -2497,7 +2577,7 @@ function finalizeLiveDual(): void {
     w.morale = clampStat((w.morale || 70) + (outcome === "WIN" ? 3 : outcome === "TIE" ? 0 : -2));
   }
 
-  const summary = `Week ${seasonWeek - 1}: ${state.myTeam.name} ${scoreA}-${scoreB} ${state.opponent.name}${state.trainingNote ? ` | ${state.trainingNote}` : ""}`;
+  const summary = `Week ${weekLabel}: ${state.myTeam.name} ${scoreA}-${scoreB} ${state.opponent.name}${state.trainingNote ? ` | ${state.trainingNote}` : ""}`;
   updateLeague(state.myTeam.name, state.opponent.name, scoreA, scoreB);
   renderStandings();
   const stories = generateDualStories(state.myTeam, state.opponent, dualResult, outcome, state.isPostseason);
@@ -2572,6 +2652,56 @@ function updateSeasonUI() {
   if (homeTeamNameEl) homeTeamNameEl.textContent = teamName || "Your School";
 }
 
+function applyPostDualWear(outcome: "WIN" | "LOSS" | "TIE"): void {
+  for (const w of roster) {
+    w.fatigue = Math.min(100, (w.fatigue || 20) + 12);
+    w.health = Math.max(40, (w.health || 95) - 3);
+    if (w.injury && w.injury.days > 0) {
+      w.injury.days = Math.max(0, w.injury.days - 1);
+    }
+    w.morale = clampStat((w.morale || 70) + (outcome === "WIN" ? 3 : outcome === "TIE" ? 0 : -2));
+  }
+}
+
+function playScheduledDual(ev: ScheduleEvent, trainingNote?: string): DualResult | null {
+  if (roster.length === 0) {
+    if (seasonLog) seasonLog.textContent = "Add wrestlers first.";
+    return null;
+  }
+  if (!ensureLineupReady()) return null;
+
+  const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
+  myTeam.wrestlers = myTeam.wrestlers.map((w) => ({ ...w, programName: myTeam.name }));
+  const rival = ev.dual.opponent;
+  const { log, scoreA, scoreB, bouts } = simulateDual(myTeam, rival);
+
+  let outcome: "WIN" | "LOSS" | "TIE";
+  if (scoreA > scoreB) {
+    seasonWins++;
+    outcome = "WIN";
+  } else if (scoreB > scoreA) {
+    seasonLosses++;
+    outcome = "LOSS";
+  } else {
+    outcome = "TIE";
+  }
+
+  const result: DualResult = { log, scoreA, scoreB, bouts };
+  ev.dual.result = result;
+  if (seasonLog) seasonLog.textContent = `Week ${ev.week}: ${outcome}\n\n${log}`;
+
+  const summary = `Week ${ev.week} Dual: ${myTeam.name} ${scoreA}-${scoreB} ${rival.name}${trainingNote ? ` | ${trainingNote}` : ""}`;
+  latestResultSummary = summary;
+  addWeeklySummary(summary);
+  updateLeague(myTeam.name, rival.name, scoreA, scoreB);
+  renderStandings();
+  renderSchedule();
+  refreshLatestSummary();
+  applyPostDualWear(outcome);
+  nextOpponent = schedule.find((e) => !e.dual.result)?.dual.opponent || null;
+  return result;
+}
+
 function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: string; payload: GazettePayload } | null {
   if (roster.length === 0) {
     if (seasonLog) seasonLog.textContent = "Add wrestlers first.";
@@ -2583,7 +2713,7 @@ function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: 
   const scheduled = schedule.find((e) => e.week === seasonWeek);
   let rival: Team;
   if (scheduled) {
-    rival = scheduled.opponent;
+    rival = scheduled.dual.opponent;
   } else if (nextOpponent) {
     rival = nextOpponent;
   } else {
@@ -2613,7 +2743,7 @@ function simulateSeasonDual(trainingNote?: string): { outcome: string; summary: 
   if (seasonLog) seasonLog.textContent = `Week ${seasonWeek}: ${outcome}\n\n` + log;
 
   if (scheduled) {
-    scheduled.result = { log, scoreA, scoreB, bouts };
+    scheduled.dual.result = { log, scoreA, scoreB, bouts };
   }
 
   seasonWeek++;
@@ -2671,7 +2801,7 @@ function buildTournamentField(): Wrestler[] | null {
     if (tournamentErrorEl) tournamentErrorEl.textContent = "Generate a roster first to build brackets.";
     return null;
   }
-  return [...roster];
+  return roster.map((w) => ({ ...w, programName: teamName || currentProgram?.name || w.programName }));
 }
 
 function simulateWeightBracket(wrestlers: Wrestler[], weightClass: number): WeightBracket | null {
@@ -2680,16 +2810,17 @@ function simulateWeightBracket(wrestlers: Wrestler[], weightClass: number): Weig
     const opp = generateTournamentOpponent(weightClass);
     seeds.push(opp);
   }
+  const rankedSeeds = [...seeds].sort((a, b) => overallScore(b) - overallScore(a)).slice(0, 8);
   const play = (a: Wrestler, b: Wrestler, round: TournamentMatch["round"]): TournamentMatch => {
     const result = simulateMatch({ ...a }, { ...b });
     return { round, a, b, result };
   };
   const winner = (match: TournamentMatch): Wrestler => match.result.winner;
   const qfPairs: [Wrestler, Wrestler][] = [
-    [seeds[0], seeds[7]],
-    [seeds[3], seeds[4]],
-    [seeds[2], seeds[5]],
-    [seeds[1], seeds[6]],
+    [rankedSeeds[0], rankedSeeds[7]],
+    [rankedSeeds[3], rankedSeeds[4]],
+    [rankedSeeds[2], rankedSeeds[5]],
+    [rankedSeeds[1], rankedSeeds[6]],
   ];
   const quarterfinals = qfPairs.map(([a, b]) => play(a, b, "Quarterfinal"));
   const semifinals: TournamentMatch[] = [
@@ -2698,19 +2829,39 @@ function simulateWeightBracket(wrestlers: Wrestler[], weightClass: number): Weig
   ];
   const final = play(winner(semifinals[0]), winner(semifinals[1]), "Final");
   const champion = final.result.winner.name;
-  return { weightClass, quarterfinals, semifinals, final, champion };
+  const runnerUp = final.result.loser.name;
+  return { weightClass, quarterfinals, semifinals, final, champion, runnerUp };
 }
 
-function simulateTournamentBracket(): TournamentBracket | null {
-  const field = buildTournamentField();
-  if (!field) return null;
+function tallyBracketPoints(bracket: WeightBracket, teamPoints: Map<string, number>): void {
+  const add = (name?: string, points = 0) => {
+    if (!name) return;
+    teamPoints.set(name, (teamPoints.get(name) || 0) + points);
+  };
+  for (const match of bracket.quarterfinals) {
+    add(match.result.winner.programName || match.result.winner.name, 2);
+  }
+  for (const match of bracket.semifinals) {
+    add(match.result.winner.programName || match.result.winner.name, 3);
+    add(match.result.loser.programName || match.result.loser.name, 1);
+  }
+  if (bracket.final) {
+    add(bracket.final.result.loser.programName || bracket.final.result.loser.name, 4);
+    add(bracket.final.result.winner.programName || bracket.final.result.winner.name, 6);
+    add(bracket.champion, 2);
+  }
+}
+
+function buildTournamentBrackets(field: Wrestler[]): { bracket: TournamentBracket; teamPoints: Map<string, number> } | null {
+  const teamPoints = new Map<string, number>();
   const brackets: WeightBracket[] = [];
   const placings: { weightClass: number; champion?: string; runnerUp?: string }[] = [];
   for (const wc of WEIGHT_CLASSES) {
     const bracket = simulateWeightBracket(field, wc);
     if (bracket) {
       brackets.push(bracket);
-      placings.push({ weightClass: wc, champion: bracket.champion });
+      placings.push({ weightClass: wc, champion: bracket.champion, runnerUp: bracket.runnerUp });
+      tallyBracketPoints(bracket, teamPoints);
     }
   }
   if (brackets.length === 0) {
@@ -2718,7 +2869,14 @@ function simulateTournamentBracket(): TournamentBracket | null {
     return null;
   }
   if (tournamentErrorEl) tournamentErrorEl.textContent = "";
-  return { weights: brackets, placings };
+  return { bracket: { weights: brackets, placings }, teamPoints };
+}
+
+function simulateTournamentBracket(field?: Wrestler[]): TournamentBracket | null {
+  const pool = field ?? buildTournamentField();
+  if (!pool) return null;
+  const built = buildTournamentBrackets(pool);
+  return built?.bracket ?? null;
 }
 
 function renderTournamentBracket(bracket: TournamentBracket): void {
@@ -2790,6 +2948,62 @@ function renderTournamentBracket(bracket: TournamentBracket): void {
     tournamentScoresEl.appendChild(li);
   });
   refreshLatestSummary();
+}
+
+function runScheduledTournament(ev: ScheduleEvent): TournamentResult | null {
+  const baseProgram = getBaseProgram();
+  if (!baseProgram) return null;
+  const myTeam = buildTeamFromRoster(roster, teamName || baseProgram.name);
+  const starters = getStarters();
+  myTeam.wrestlers = starters.length ? starters.map((w) => ({ ...w, programName: myTeam.name })) : myTeam.wrestlers;
+
+  const otherPrograms = ev.tournament.fieldPrograms.filter((p) => p.id !== baseProgram.id);
+  const opponentTeams = otherPrograms.map((p) => buildTeamFromProgram(p));
+  const fieldTeams = [myTeam, ...opponentTeams];
+  const field: Wrestler[] = [];
+  for (const team of fieldTeams) {
+    for (const w of team.wrestlers) {
+      field.push({ ...w, programName: team.name });
+    }
+  }
+  const built = buildTournamentBrackets(field);
+  if (!built) return null;
+
+  const bracket = built.bracket;
+  const teamScores = Array.from(built.teamPoints.entries())
+    .map(([name, points]) => ({ name, points }))
+    .sort((a, b) => b.points - a.points);
+  const summary = teamScores[0]
+    ? `${teamScores[0].name} wins with ${teamScores[0].points.toFixed(0)} pts`
+    : `${ev.tournament.name} complete`;
+  ev.tournament.result = { bracket, teamScores, summary };
+  lastTournamentBracket = bracket;
+  renderTournamentBracket(bracket);
+
+  const myScore = teamScores.find((t) => t.name === myTeam.name);
+  if (myScore) {
+    if (teamScores[0]?.name === myTeam.name) seasonWins++;
+    else seasonLosses++;
+  }
+
+  for (let i = 0; i < teamScores.length - 1; i++) {
+    const a = teamScores[i];
+    const b = teamScores[i + 1];
+    updateLeague(a.name, b.name, Math.round(a.points), Math.round(b.points));
+  }
+
+  for (const w of roster) {
+    w.fatigue = Math.min(100, (w.fatigue || 20) + 10);
+    w.health = Math.max(40, (w.health || 95) - 2);
+  }
+
+  addWeeklySummary(`Week ${ev.week} Tournament: ${summary}`);
+  latestResultSummary = `Week ${ev.week} ${ev.tournament.name}: ${summary}`;
+  renderStandings();
+  renderSchedule();
+  refreshLatestSummary();
+  nextOpponent = schedule.find((e) => !e.dual.result)?.dual.opponent || null;
+  return ev.tournament.result;
 }
 
 function renderTournamentIfAvailable(): void {
@@ -3137,12 +3351,7 @@ regenRosterBtn?.addEventListener("click", () => {
 
   generateRosterForProgram(currentProgram);
 
-  seasonWeek = 1;
-
-  seasonWins = 0;
-
-  seasonLosses = 0;
-
+  generateSeasonSchedule();
   updateSeasonUI();
 
 });
@@ -3200,8 +3409,8 @@ scheduleGenerateBtn?.addEventListener("click", () => {
 
 scoutBtn?.addEventListener("click", () => {
   if (!ensureProgramSelected()) return;
-  const upcoming = schedule.find((e) => !e.result) || null;
-  nextOpponent = upcoming?.opponent || nextOpponent;
+  const upcoming = schedule.find((e) => !e.dual.result) || null;
+  nextOpponent = upcoming?.dual.opponent || nextOpponent;
   renderScoutReport(nextOpponent);
 });
 
@@ -3273,59 +3482,61 @@ healMinorsBtn?.addEventListener("click", () => {
 
 seasonNextBtn.addEventListener("click", () => {
   if (!ensureProgramSelected()) return;
+  // If a live dual is in progress, bring user back without advancing the calendar.
+  if (liveDualState?.active) {
+    setActiveView("live-dual");
+    return;
+  }
+  const currentWeek = schedule.find((e) => e.week === seasonWeek);
+  const advanceDay = (week?: ScheduleEvent) => {
+    const wrapping = dayOfWeek >= 7;
+    if (wrapping) {
+      const weekComplete = week ? !!week.dual.result && !!week.tournament.result : true;
+      if (weekComplete) {
+        seasonWeek = Math.min(schedule.length + 1, seasonWeek + 1);
+      }
+      dayOfWeek = 1;
+    } else {
+      dayOfWeek += 1;
+    }
+  };
+
+  advanceDay(currentWeek);
+
   const scheduled = schedule.find((e) => e.week === seasonWeek);
-  nextOpponent = scheduled?.opponent || nextOpponent;
+  nextOpponent = scheduled?.dual.opponent || nextOpponent;
   const focusValue = (trainingSelect?.value || "balanced") as TrainingFocus;
   const trainingSummary = applyTraining(focusValue);
   tickRecruitInterest();
-  const isDualDay = dayOfWeek === dualDay;
-  const isTournamentDay = dayOfWeek === tournamentDay;
-  if (isDualDay || isTournamentDay) {
-    if (liveDualState && liveDualState.active) {
-      // If user clicks Next Day while a live dual is open, just quick-finish it to keep the loop unblocked.
-      quickFinishLiveDual();
-      return;
-    }
-    if (isTournamentDay) {
-      const bracket = simulateTournamentBracket();
-      if (!bracket) {
-        if (seasonLog) seasonLog.textContent = `${trainingSummary}\n\nTournament simulation unavailable.`;
-        return;
-      }
-      lastTournamentBracket = bracket;
-      const champ = `Tournament simulated (${bracket.weights.length} brackets)`;
-      if (scheduled) {
-        scheduled.result = { log: champ, scoreA: 0, scoreB: 0, bouts: [] };
-      }
-      if (seasonLog) seasonLog.textContent = `${trainingSummary}\n\n${champ}`;
-      renderTournamentBracket(bracket);
-      dayOfWeek = 1;
-      seasonWeek += 1;
-      renderSchedule();
-      updateSeasonUI();
-      setActiveView("results");
-      return;
-    } else {
-      if (!ensureLineupReady()) {
-        return;
-      }
-      const myTeam = buildTeamFromRoster(roster, teamName || "My Team");
-      let opponent: Team;
-      if (scheduled) {
-        opponent = scheduled.opponent;
-      } else if (nextOpponent) {
-        opponent = nextOpponent;
-      } else {
-        opponent = generateOpponentTeam(myTeam, pickRandom(SCHOOL_NAMES));
-      }
-      startLiveDual(opponent, trainingSummary, isTournamentDay, scheduled?.week);
-      if (seasonLog) seasonLog.textContent = trainingSummary + "\n\n" + (seasonLog.textContent || "");
-      return;
-    }
-  } else {
-    dayOfWeek += 1;
-    if (seasonLog) seasonLog.textContent = trainingSummary + "\n\n" + (seasonLog.textContent || "");
+  if (seasonLog) seasonLog.textContent = trainingSummary;
+
+  if (!scheduled) {
+    if (seasonLog) seasonLog.textContent = `${trainingSummary}\n\nNo events scheduled.`;
+    updateSeasonUI();
+    renderGoals();
+    return;
   }
+
+  if (!scheduled.dual.result && dayOfWeek === dualDay) {
+    startLiveDual(scheduled.dual.opponent, trainingSummary, false, scheduled.week);
+    updateSeasonUI();
+    renderGoals();
+    return;
+  }
+
+  if (!scheduled.tournament.result && dayOfWeek === tournamentDay) {
+    const result = runScheduledTournament(scheduled);
+    if (result) {
+      renderSchedule();
+      if (seasonLog) seasonLog.textContent = `Week ${scheduled.week} Tournament: ${result.summary}`;
+      setActiveView("results");
+      renderTournamentIfAvailable();
+    }
+    updateSeasonUI();
+    renderGoals();
+    return;
+  }
+
   updateSeasonUI();
   renderGoals();
 });
@@ -3350,6 +3561,7 @@ if (activeDual && activeDual.active) {
 
 // expose quick sim for potential debug/legacy flows
 (window as any).quickSimSeasonDual = simulateSeasonDual;
+(window as any).startLiveDual = startLiveDual;
 
 navButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -3451,9 +3663,15 @@ homeNextDayBtn?.addEventListener("click", () => {
 
 function updateLeague(teamAName: string, teamBName: string, scoreA: number, scoreB: number): void {
   if (league.length === 0) initLeague();
+  const resolveProgram = (name: string): Program | undefined => {
+    const direct = PROGRAM_LOOKUP.get(name);
+    if (direct) return direct;
+    if (currentProgram && (name === currentProgram.name || name === teamName)) return currentProgram;
+    return undefined;
+  };
   const findOrAdd = (name: string): LeagueTeam => {
     let entry = league.find((t) => t.name === name);
-    const program = PROGRAM_LOOKUP.get(name);
+    const program = resolveProgram(name);
     if (!entry) {
       entry = {
         id: program?.id,
@@ -3475,6 +3693,10 @@ function updateLeague(teamAName: string, teamBName: string, scoreA: number, scor
       entry.regionId = entry.regionId ?? program?.regionId;
       entry.stateId = entry.stateId ?? program?.stateId;
       entry.prestige = entry.prestige ?? program?.prestige;
+      // If user renamed the program, ensure affiliations stay in sync
+      if (!entry.districtId && program?.districtId !== undefined) entry.districtId = program.districtId;
+      if (!entry.regionId && program?.regionId !== undefined) entry.regionId = program.regionId;
+      if (!entry.stateId && program?.stateId !== undefined) entry.stateId = program.stateId;
     }
     return entry;
   };
@@ -3543,5 +3765,6 @@ function generateTournamentOpponent(weightClass: number): Wrestler {
   w.morale = 70;
   w.health = 95;
   w.fatigue = 20;
+  w.programName = program.name;
   return w;
 }
